@@ -1,0 +1,506 @@
+---
+title: "Example Simulation"
+author: "Chris Terry"
+output: 
+  html_document: 
+    toc: yes
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+ Scanning the movement through the ternary plot of a community before and during climate change
+ 
+ First thing that is needed is the presence / absences through time. 
+
+```{r message = FALSE, warning = FALSE}
+library(tidyverse)
+library(igraph)
+library(ggtern)
+library(cowplot)
+
+walk( list.files('../Scripts/', full.names = TRUE), source)
+
+```
+
+# Running an example simulation
+
+## Parameters 
+```{r}
+NumRuns = 1
+TrialName="TrackThroughTime"
+
+## numbers were drawn randomly 
+InputParameters <- data.frame(RunID = 1, 
+                     RunName = TrialName,
+                     S_global = 50,
+                     Disp= 0.0027807184476405385,  
+                     comp_str= 0.3101610479876399,
+                     comp_conn= 0.01,  
+                     R_max = 10.4629793507047)
+
+# write_csv(InputParameters, paste0('../Parameters/' ,TrialName, '.csv' ))
+# 
+# dir.create(paste0('../SavedObjects/',TrialName), showWarnings = FALSE)
+# dir.create(paste0('../SavedObjects/', TrialName, '_VP'), showWarnings = FALSE)
+
+RunID = 1
+
+## Hardcoded parameters 
+num_blocks = 1000 ## total time
+Ext_Thresh = 0.00001 
+num_steps_per_block = 10 # number of time intervals to advance model per block
+ArrivalPop = 0.0001  ## initial density of newly arrived species (made a lower to account for wider initial appearance. )
+ImmFrac = 1/250 ## proportion of global species pool that arrive each step (basically 2 each step)
+K = 10 # carrying capacity parameter 
+Length_CC = 25
+Region_Length = 14
+
+Disp     <- InputParameters$Disp[RunID]
+comp_str <- InputParameters$comp_str[RunID]
+R_max    <- InputParameters$R_max[RunID]
+comp_conn    <- InputParameters$comp_conn[RunID]
+S_global <- InputParameters$S_global[RunID]
+
+Before_During_Tester<- InitiateSystem( Pars = list( seed =  RunID ,
+                                                    Region_Length = Region_Length, # Size of Square of nodes
+                                                    S_global = S_global, # number of species in global pool
+                                                    comp_conn = comp_conn,  #  competitive connectance
+                                                    mutu_conn = NULL,  ## positive interaction 
+                                                    mutu_relstr = 0))  
+
+B_MAT   <- Before_During_Tester$B_MAT 
+CompMat <- Before_During_Tester$CompMat
+DispMat <- Before_During_Tester$DispMat
+E_nodes <- Before_During_Tester$E_nodes
+EnvOpt  <- Before_During_Tester$EnvOpt
+E_nodes_2 <- Before_During_Tester$E_nodes_2
+EnvOpt_2  <- Before_During_Tester$EnvOpt_2
+
+R_Mat_2 <- Before_During_Tester$R_Mat_2
+R_Mat_3 <- Before_During_Tester$R_Mat_3
+
+
+### Derived Parameters
+timescale = 1/ num_steps_per_block  ## ham fisted adjustor
+N_sp <- nrow( B_MAT)
+t_max = num_steps_per_block +1
+N_Nodes <-  ncol(B_MAT)
+
+### Determining climate change
+E_change_noise =c( rep(0, num_blocks-Length_CC),  ## initial period of no noise to build community in 
+                   seq(0, 0.25,length.out = Length_CC)) + 
+  c( rep(0, 500), 
+     rnorm(num_blocks-500, sd = 0.01))
+```
+
+## Building the communities
+
+```{r eval = FALSE}
+#### run model
+#####
+## Output results container   array time / species / nodes 
+## save 50 before, then 25 during. 
+
+N_t_to_Save = 75
+
+ArrayContainer <- array(NA, dim = c(nrow(B_MAT), ncol(B_MAT), N_t_to_Save ))
+Total_species = rep(NA, num_blocks)
+
+for(t in 1:num_blocks){  ## burn-in loop (no saving)
+  
+  #########
+  R_Mat <- Calc_RMat_3(E_nodes, EnvOpt,  E_change=E_change_noise[t],
+                       R_max = R_max, R_Mat_2, R_Mat_3)
+  ############
+  ## Dispersal
+  B_MAT <- B_MAT +  TotalDispersal(Disp, B_MAT, DispMat,ImmFrac, N_sp, N_Nodes , ArrivalPop)
+  ############
+  ## Run Dynamics
+  B_MAT <- Dynamics_Discrete_Sparse(B_MAT , t_max, timescale,R_Mat,comp_str, CompMat, K)
+  B_MAT <- as.matrix(B_MAT)
+  #######
+  ## Remove locally extinct species 
+  B_MAT[rowSums(B_MAT>Ext_Thresh)==0, ] <- 0  ## This option removes species below threshold in all sites
+  #################
+  Total_species[t]<- sum(rowSums(B_MAT>Ext_Thresh)>0)
+  if(t%%100==0){print(t)}
+  if( t > num_blocks-N_t_to_Save){
+    ArrayContainer[,,t-(num_blocks-N_t_to_Save)] <- B_MAT
+  }
+}
+
+Trial <- list(  Name = paste0('Run',InputParameters$RunName[1],'_',RunID),
+                ArrayContainer=ArrayContainer,
+                ModelSetUp = Before_During_Tester,
+                E_change_noise = E_change_noise,
+                Total_species= Total_species,
+                Region_Length = Region_Length)
+
+# save(Trial, file = paste0('../SavedObjects/', InputParameters$RunName[1], '/Run_',RunID,'_ArrayOutput'))
+
+```
+
+```{r}
+load(file = paste0('../SavedObjects/', InputParameters$RunName[1], '/Run_',RunID,'_ArrayOutput'))
+ArrayContainer <- Trial$ArrayContainer
+```
+
+
+## Fitting HMSC
+
+NB this code also tests different the threshold to determine if the species is present or not. This wasn't included in the final paper.
+
+```{r eval = FALSE, include = FALSE, echo = FALSE}
+
+TrialName="TrackThroughTime"
+
+.libPaths("~/LibraryCentos/")
+
+sessionInfo()
+
+Start<- Sys.time()
+print('Starting at:')
+Start
+
+## Load packages
+library(tidyverse)
+library(igraph)
+library(HMSC)
+select <- dplyr::select
+
+cat(getwd())
+setwd('~/GitHub/MC_coherence/BashScripts/')
+
+### Load all functions
+walk( list.files('../Scripts/', full.names = TRUE), source)
+
+RunID =  1
+
+t_test = as.numeric(Sys.getenv("SGE_TASK_ID"))
+
+InputParameters<- read_csv(paste0('../Parameters/',TrialName, '.csv'),
+                           show_col_types = FALSE)
+
+load(file = paste0('../SavedObjects/', InputParameters$RunName[1], '/Run_',RunID,'_ArrayOutput'))
+
+for(Occ_thresh in c(0.01, 0.1, 1)  ){
+
+  #########
+  # Processing to get focal species, binareised from focal nodes
+    Side_length = Trial$Region_Length 
+
+  Mat_to_keep <- matrix(TRUE, nrow = Side_length, ncol =Side_length)
+  
+  Mat_to_keep[c(1,2,Side_length-1, Side_length), ]<-FALSE
+  Mat_to_keep[,c(1,2,Side_length-1, Side_length) ]<-FALSE
+  
+  sites_to_keep <-which(Mat_to_keep )
+  
+  
+  slice <- Trial$ArrayContainer[,,t_test]
+  slice_focalsites <- slice[,sites_to_keep]  # originally rows = species, cols = sites 
+
+  ## Binarising
+  slice_focalsites <- slice_focalsites> Occ_thresh
+
+  ### Then find species that can be straight dropped if they too rarely occur 
+  
+  focal_sites_allslices <- Trial$ArrayContainer[,sites_to_keep,]
+  
+  
+    ### need to do some more calculations about which species to keep - need to occur at at least 20 sites accross all time samples
+  ## will be a bit lower as more times
+
+  Occupancy_allslice <- apply(focal_sites_allslices>Occ_thresh, MARGIN = c(1,3), sum)  # make a species x time slice occupancy 
+KeepSpecies<- apply(Occupancy_allslice>=20, MARGIN = 1, all)
+  
+  ## also do a final transpose so have sites as rows, and species as columns
+  slice_focalsites_focalspecies_t <- t(slice_focalsites[KeepSpecies, ])*1
+
+  ##  Adding species names for back tracking if necessary
+  speciesnames <- paste0('Sp_', which(KeepSpecies))
+  
+  colnames(slice_focalsites_focalspecies_t) <- speciesnames
+
+  ## Adding node names to match original set up 
+  nodenames <- paste0('Node_', sites_to_keep)
+  rownames(slice_focalsites_focalspecies_t ) <- nodenames
+
+  E_toUse= Trial$ModelSetUp$E_nodes_2[sites_to_keep]
+
+  # End Processing
+  #########
+  
+  ## Prepping envrionment and spatial data for fitting:
+  
+    MEM <- read.csv(paste0('../SavedObjects/MEMs/MEMof',Side_length,'side_focal',Side_length-4,'.csv'))
+  X_formatted <- cbind(scale(E_toUse),
+                       scale(E_toUse)^2,
+                       MEM[,-1])  # description of sites . direct and squared environment + a moran eigenvector term (dropping node id numbers)
+  
+  X_groups <- c(rep("env",3),   # fitting three direct environmental terms (i.e. including intercept)
+                rep("spa",ncol(MEM)-1))  ## and as many spatial terms as the eigen vector map does (NB name column dropped also)
+  
+  N_Sites<- (Side_length-4)^2
+
+  ### Function to prepare all the data for HMSC function 
+  formData_slice <- as.HMSCdata(Y = slice_focalsites_focalspecies_t,                   
+                                 X = X_formatted,  Random = as.factor(1:N_Sites),         
+                                 scaleX = TRUE,  interceptX = TRUE)
+  
+
+  ## fitting models
+  model_slice<-  hmsc(formData_slice, family = "probit",
+                       niter = 20000, nburn = 5000, thin = 10 )  # takes a few minutes
+  
+  ## Variance partitioning
+  vpSpp_slice <-   variPart(model_slice,groupX = X_groups, type = "III",  R2adjust = TRUE)  # takes 6x as long... 
+
+  ## Data reformatting and partitioning 
+  vpSpp_slice %>% 
+    map(as_tibble) %>%
+    bind_cols() %>% 
+    mutate(Sample = t_test,
+           species =colnames(slice_focalsites_focalspecies_t) ) %>% 
+    left_join(data.frame(prevalence = colSums(slice_focalsites_focalspecies_t), 
+                         species  = colnames(slice_focalsites_focalspecies_t)   ) ,
+              by = "species")  %>%
+    set_names(c( "c", "b", "a", "e", "f", "d", "g", "Sample", "species", "prevalance")) %>% 
+    transmute(species = species,
+              Sample = Sample,
+              env = a + f + 0.5 * d + 0.5 * g,
+              env = ifelse(env < 0, 0, env),
+              spa = b + e + 0.5 * d + 0.5 * g,
+              spa = ifelse(spa < 0, 0, spa),
+              codist = c,
+              codist = ifelse(codist < 0, 0, codist),
+              r2 = env + spa + codist,
+              iteration = paste0('Run_', RunID)) -> VP_Both
+  
+  VP_Both$Occ_thresh <- Occ_thresh
+  
+  write_csv(VP_Both, file = paste0('../SavedObjects/', TrialName, '_VP/TimeSlice_',t_test,'_VP_Occ_', Occ_thresh))
+  cat(paste0('\nDone VPing:TimeSlice_',t_test,
+             'OccupancyThresh:', Occ_thresh,
+             'Time:', Sys.time()))
+}
+  
+print('Finishing at:')
+Sys.time()
+
+print('Total time:')
+Sys.time() - Start
+
+```
+
+## Loading results from HMSC
+```{r}
+InputParameters <- read_csv( paste0('../Parameters/' ,TrialName ,'.csv'),
+                             show_col_types = FALSE) %>%
+  mutate( iteration = paste0('Run_',RunID  ))
+
+Outs<-list.files(path = paste0('../SavedObjects/', TrialName, '_VP'), full.names = TRUE)
+
+AllRuns<-map_df( Outs, read_csv, show_col_types = FALSE)
+```
+
+# Ternary Plot figure
+
+```{r}
+AllRuns %>%
+  group_by( Sample, Occ_thresh) %>%
+  summarise(n_sp = n_distinct(species),
+            MeanCodist = mean(codist),
+            MeanR2 = mean(r2),
+            MeanSpa = mean(spa),
+            MeanEnv = mean(env))-> Grouped_DF
+```
+
+```{r}
+
+Grouped_DF %>% 
+  filter( Occ_thresh == 0.1) -> XXXX
+
+  XXXX$BaseT = c( rep(NA,50) ,seq(0, 0.25,length.out = 25)) 
+
+  XXXX %>%
+    gather('Partition', 'Value',  MeanCodist, MeanR2, MeanSpa, MeanEnv  ) %>%
+    ggplot( aes( x = Sample, y = Value, col = Partition))+
+    geom_point()+
+    geom_smooth( se = FALSE)+
+    geom_vline( xintercept = 50)+
+    theme_minimal()+
+    ylab('Variance Explained')+
+    xlab('Time')+
+    scale_colour_manual( values = c('lightskyblue3', 'palegreen4','gold2',  'pink'),
+                     labels = c('Codistribution','Environmental' ,'Spatial', 'Total'),
+                     limits = c('MeanCodist', 'MeanEnv' ,'MeanSpa' , 'MeanR2'))+
+    theme(legend.position = 'bottom')
+    
+  
+  
+XXXX %>%
+  arrange( Sample)%>%
+  ggtern(aes(x = MeanEnv, z = MeanSpa, y = MeanCodist, size = MeanR2)) +
+  geom_path( alpha = 0.8, size = 0.5,aes(color =BaseT  )) +
+geom_point(aes(color =BaseT  ), alpha = 1, size = 3) +
+  scale_T_continuous(limits=c(0,1),breaks=seq(0,1,by=0.1),
+                     labels=seq(0,1,by=0.1)) +
+  scale_L_continuous(limits=c(0.0,1),breaks=seq(0,1,by=0.1),
+                     labels=seq(0,1,by=0.1)) +
+  scale_R_continuous(limits=c(0,1),breaks=seq(0,1,by=0.1),
+                     labels=seq(0,1,by=0.1)) +
+  labs(title = '',
+       x = "", xarrow = "Environment",
+       y = "",yarrow = "Codistribution",
+       z = "", zarrow = "Spatial" ) +
+  theme_light() +
+  #scale_colour_viridis_c()+
+  scale_colour_gradient2(low = 'skyblue',mid = 'blue',
+                         high = 'red', midpoint = 0.125,
+                          name = 'Envrionmental\nChange\n')+
+  theme_showarrows() +
+  scale_size_area(limits = c(0,1), breaks = seq(0,1,0.2)) +
+  theme(panel.grid = element_line(color = "darkgrey"),
+        axis.title = element_text(size = 8),
+        legend.position = 'bottom',
+        legend.title  = element_text(size = 8),
+                legend.text = element_text(size = 8),
+        legend.key.width  = unit(1.5, 'cm'))+
+  theme_zoom_R(0.4)
+
+
+# ggsave('Figures/TernaryPlot.png', width = 6, height = 6, dpi = 500 )
+
+```
+
+
+# Example of system
+
+```{r}
+
+Time1 <- ArrayContainer[,,49]
+Time75 <- ArrayContainer[,,75]
+
+
+ModelSetUp <- Trial$ModelSetUp
+
+SpSel <- 2
+
+SelectedSp<-data.frame( time1Dens = log10(Time1[SpSel, ]),
+                        time75Dens = log10(Time75[SpSel, ]),
+                        R1 = t(Calc_RMat(E_nodes = ModelSetUp$E_nodes,
+                                       EnvOpt = ModelSetUp$EnvOpt[SpSel],
+                                       E_change = 0)),
+                        R2 =  ModelSetUp$R_Mat_2[SpSel,],
+                        E1 =  ModelSetUp$E_nodes,
+                        E2 = ModelSetUp$E_nodes_2,
+                        E3 = ModelSetUp$R_Mat_3[SpSel,] ,
+                        R_Tot = t(Calc_RMat_3(E_nodes = ModelSetUp$E_nodes,
+                                       EnvOpt = ModelSetUp$EnvOpt[SpSel],
+                                       E_change = 0, R_Mat_2 =ModelSetUp$R_Mat_2[SpSel,] ,
+                                       R_Mat_3 =ModelSetUp$R_Mat_3[SpSel,] )),
+                        
+                        R_Tot_change = t(Calc_RMat_3(E_nodes = ModelSetUp$E_nodes,
+                                       EnvOpt = ModelSetUp$EnvOpt[SpSel],
+                                       E_change = 0.25, 
+                                       R_Mat_2 =ModelSetUp$R_Mat_2[SpSel,] ,
+                                       R_Mat_3 =ModelSetUp$R_Mat_3[SpSel,] ))
+                        )
+
+ RL <- Trial$Region_Length 
+  
+  Node_loc<-  data.frame(NodeID = 1:(RL^2),
+                         x=rep((1:RL)/RL, each = RL),
+                         y=rep((1:RL)/RL, times = RL))
+  
+ Mat_to_keep <- matrix(TRUE, nrow = RL, ncol =RL)
+  Mat_to_keep[c(1,2,RL-1, RL), ]<-FALSE
+  Mat_to_keep[,c(1,2,RL-1, RL) ]<-FALSE
+  sites_to_keep <-which(Mat_to_keep )
+  
+xxx<- as_tibble(bind_cols(SelectedSp, Node_loc))%>% 
+  mutate( Kept = (NodeID      %in% sites_to_keep)*1 )
+
+
+```
+
+### Plots
+
+```{r message = FALSE, warning = FALSE}
+
+theme_nothing <- ggmap::theme_nothing
+
+## Density 
+xxx %>% 
+  ggplot(aes(x=x,y =y,fill=time1Dens,
+             alpha = Kept))+
+  geom_tile()+scale_fill_viridis_c()+
+    theme_nothing()+coord_fixed()+scale_alpha(range = c(0.2, 1)) +
+  ggtitle( 'Density Pre-change') -> plotA
+
+
+xxx %>% 
+  ggplot(aes(x=x,y =y,fill=time75Dens,
+             alpha = Kept))+scale_alpha(range = c(0.2, 1))+
+  geom_tile()+scale_fill_viridis_c()+
+    theme_nothing()+coord_fixed()+
+  ggtitle( 'Density (End)') -> plotB
+
+xxx %>% ggplot(aes(x=x,y =y,fill=E1,
+             alpha = Kept))+geom_tile()+
+  scale_fill_viridis_c(option = 'B')+coord_fixed()+ theme_nothing()+
+  ggtitle('Envrionmental Variable 1 (Pre-change)') -> plotC
+
+xxx %>% ggplot(aes(x=x,y =y,fill=E2,
+             alpha = Kept))+geom_tile()+
+  scale_alpha(range = c(0.2, 1))+coord_fixed()+ theme_nothing()+
+  scale_fill_viridis_c(option = 'B')+ ggtitle('Envrionmental Variable 2') -> plotD
+
+
+xxx %>% ggplot(aes(x=x,y =y,fill=R_Tot,
+             alpha = Kept))+geom_tile()+coord_fixed()+
+  scale_alpha(range = c(0.2, 1))+ theme_nothing()+
+  scale_fill_viridis_c(option = 'A') + geom_tile()+ ggtitle('R (Pre_Change)') -> plotE
+
+xxx %>% ggplot(aes(x=x,y =y,fill=R_Tot_change,
+             alpha = Kept))+geom_tile()+coord_fixed()+
+  scale_alpha(range = c(0.2, 1))+ theme_nothing()+
+  scale_fill_viridis_c(option = 'A') + geom_tile()+ ggtitle('R (After change)') -> plotF
+
+
+plot_grid(  plotC, plotD,
+            plotE, plotF, 
+            plotA, plotB, 
+            ncol = 2,
+            hjust = -0.1,
+            labels = c( 'a) E1', 'b) E2',
+                        'c) Growth rate t = 0',
+                        'd) Growth Rate t = 25', 
+                        'e) Density t =0',
+                        'f) Density t= 25'),
+            label_fontface = 'plain', scale = 0.9)
+
+#ggsave( 'Figures/SimulationExample.png', height = 10, width = 5, dpi = 500)
+
+```
+
+```{r fig.height=3, fig.width=3}
+## Growth Rate components
+xxx %>% ggplot(aes(x=x,y =y,fill=R1))+geom_tile()+scale_fill_viridis_c()
+xxx %>% ggplot(aes(x=x,y =y,fill=R2))+geom_tile()+scale_fill_viridis_c()
+xxx %>% ggplot(aes(x=x,y =y,fill=E3))+geom_tile()+scale_fill_viridis_c()
+
+```
+
+
+
+
+
+ 
+ 
+ 

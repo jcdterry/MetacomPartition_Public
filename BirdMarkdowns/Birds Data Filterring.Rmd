@@ -1,0 +1,360 @@
+---
+title: "Birds Data Preparation"
+output: 
+  html_document: 
+    toc: yes
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r message = FALSE, warning= FALSE}
+library(tidyverse)
+select<- dplyr::select
+map<-purrr::map
+
+
+```
+
+```{r message = FALSE}
+## Data from https://www.bto.org/sites/default/files/atlas_open_data_files.zip
+
+Distributions <- read_csv('../atlas_open_data_files/distributions.csv')
+GridCells <- read_csv('../atlas_open_data_files/grid_square_coordinates_lookup.csv')
+
+Species <- read_csv('../atlas_open_data_files/species_lookup.csv')
+
+Distributions$period %>% table
+Distributions$status %>% table
+
+```
+
+# Bird Data
+## Grid cells
+
+```{r eval = FALSE}
+## Grid Cell location:
+#5 values given are the four corners of the bounding boxes (1st one is repeated)
+#To simplify, take an average of first 4
+GridCells %>%
+  group_by(grid) %>%
+  filter( order != 5) %>%
+  summarise(long = mean(long),
+            lat = mean(lat)) -> GridCenters
+```
+
+## Filtering bird records to final set
+
+```{r eval = FALSE}
+## 
+Distributions %>%
+  filter( season == 'B',
+          period %in% c('1968-72', '2008-11'),
+          island  == 'B', 
+          resolution == 10) %>%
+  left_join(GridCenters, by ="grid") %>%
+    select( -season, - island, - resolution) %>%
+  left_join(Species, by = "speccode") %>%
+  filter( lat>= 51, lat <= 54.3,
+          long >= -2.3, long <=-0.9 )  %>%
+  add_count(english_name, name = 'total_count') %>%
+  filter( total_count >=16,
+          total_count < 680) ->CentralBreeders_focal
+```
+
+## Saving Species data as presence/absence matrices
+```{r eval = FALSE}
+## Higher certainty 
+CentralBreeders_focal %>%
+  filter( status %in% c('Confirmed', 'Probable')) %>%
+  select( period, grid,  english_name) %>% 
+  mutate(Present = 1) %>%
+  pivot_wider(id_cols = c(period, english_name),
+              names_from = grid,
+              values_from = Present ,
+              values_fill = 0) -> HigherCert
+
+## All data certainty 
+CentralBreeders_focal %>%
+  select( period, grid,  english_name) %>% 
+  mutate(Present = 1) %>%
+  pivot_wider(id_cols = c(period, english_name),
+              names_from = grid,
+              values_from = Present ,
+              values_fill = 0) -> AllCert
+
+## Saving separately
+HigherCert %>% filter( period == '1968-72') %>% select(-period) %>%
+  write_csv('../BirdData_clean/focalBirds_High_1970.csv')
+HigherCert %>% filter( period == '2008-11') %>% select(-period) %>%
+  write_csv('../BirdData_clean/focalBirds_High_2010.csv')
+AllCert    %>% filter( period == '1968-72') %>% select(-period) %>%
+  write_csv('../BirdData_clean/focalBirds_AllC_1970.csv')
+AllCert    %>% filter( period == '2008-11') %>% select(-period) %>%
+  write_csv('../BirdData_clean/focalBirds_AllC_2010.csv')
+```
+
+# Envrionmental data
+
+## Land cover
+
+Land cover map available for 1990 - intermediate between samples.
+https://catalogue.ceh.ac.uk/documents/bb381b5b-d44e-4dbd-a9d1-efffd4c3e4a8
+
+```{r eval = FALSE}
+library(raster)
+library(rgdal)
+
+LC1990 <- brick( 'D:/Data For Birds/Land Cover Map 1990 1km perc/data/gb1990lcm1km_pc.tif')
+# str(LC1990)
+
+RasterProjection<- '+proj=tmerc +lat_0=49 +lon_0=-2 +k=0.9996012717 +x_0=400000 +y_0=-100000 +ellps=airy +towgs84=446.448,-125.157,542.06,0.15,0.247,0.842,-20.489 +units=m +no_defs'
+
+LCM_habitats_1990 <- c( 'Broadleaved woodland', 'Coniferous Woodland','Arable and Horticulture',
+                        'Improved Grassland','Neutral Grassland','Calcareous Grassland','Acid grassland','Fen, Marsh and Swamp','Heather',
+                        'Heather grassland','Bog','Inland Rock','Saltwater','Freshwater','Supra-littoral Rock',
+                        'Supra-littoral Sediment','Littoral Rock','Littoral sediment',
+                        'Saltmarsh','Urban','Suburban')
+```
+
+```{r eval =FALSE}
+CentralBreeders_focal %>%
+  distinct( long, lat, grid) -> Focal_grid_coords
+
+GridCells %>%
+  filter( grid %in% Focal_grid_coords$grid,
+          order !=5 ) -> CellEdges  # this gives the corners of each grid cell. 
+
+Find_Average_LandCover <- function( FG){
+  
+  Edges<- filter( CellEdges,grid == FG)
+  
+  edge_lats = range(Edges$lat)
+  edge_lons = range(Edges$long)
+  
+  mid_lats = seq( from = edge_lats[1],to = edge_lats[2], 
+                  length = 21)[seq(2, 20, by =2)]  
+  
+  mid_longs = seq( from = edge_lons[1],to = edge_lons[2], 
+                   length = 21)[seq(2, 20, by =2)]  
+  
+  # 100 mid points of each of the 1km grid cells with the 10x10 # should align nicely
+  expand.grid(mid_longs, mid_lats )%>% 
+    as.matrix() %>%
+    project(proj = RasterProjection)%>%
+    raster::cellFromXY(object = LC1990,xy = .) -> Cells_LCM  
+  Onekm_by_LCvar <- raster::extract(LC1990, Cells_LCM)
+  Average_LCvar <- as.data.frame(t(colMeans(Onekm_by_LCvar)))
+  Average_LCvar$grid = FG
+  cat(FG)
+  return(Average_LCvar) 
+}
+
+```
+
+```{r  eval = FALSE}
+FocalGridLandCover <- map_df( Focal_grid_coords$grid, Find_Average_LandCover) # 1 second or so each, a couple of minutes in total. 
+colnames(FocalGridLandCover) <- c(LCM_habitats_1990, 'grid')
+write_csv(FocalGridLandCover, '../SavedObjects/BirdsFocalGridLandCover.csv' )
+```
+
+### Simplifying land cover data
+
+- Excluding all coastal ones
+- Grouping some into aggregate classes, as described in the dataset doc
+
+```{r}
+FocalGridLandCover <- read_csv('../BirdData_clean/BirdsFocalGridLandCover.csv' )
+
+FocalGridLandCover %>%
+  select( -'Supra-littoral Rock', - 'Supra-littoral Sediment',
+          -'Littoral Rock',- 'Littoral sediment', 
+          - 'Saltwater', - 'Saltmarsh') %>%
+  mutate( Mountain_Heath_Bog = Heather+
+            `Heather grassland`+
+            Bog +`Inland Rock`) %>%
+  select ( -Heather,-`Heather grassland`,
+           -Bog ,-`Inland Rock`) %>%
+  select(grid, everything())-> InlandHabitats
+
+colMeans(InlandHabitats[,-1])
+```
+
+# Spatial Associations (MEM pre-calculations)
+
+```{r}
+### creating matrix of spatial coordinates:
+## return only those linked to positive autocorrelation. (i.e. removing the negative autocorrelation bits)
+Focal_xy<-  as.matrix(Focal_grid_coords[,2:3])
+
+```
+
+```{r eval = FALSE}
+library(adespatial)
+MEM <- adespatial::dbmem(Focal_xy, MEM.autocor = "positive", silent = FALSE)
+MEMs10 <- as.data.frame(as.matrix(MEM[,1:10]))
+colnames(MEMs10) <- paste0('MEM', 1:10)
+
+Site_MEMs10 <- bind_cols(data.frame(grid=Focal_grid_coords$grid),
+                   MEMs10)
+        
+write_csv(Site_MEMs10, '../BirdData_clean/Bird_FocalSites_MEM10.csv')
+```
+
+
+
+
+
+# Saving Overall Procesesed Data
+
+## Sites
+```{r}
+Site_MEMs10<- read_csv('../BirdData_clean/Bird_FocalSites_MEM10.csv')
+
+InlandHabitats %>%
+  left_join(Site_MEMs10, by = "grid") %>%
+  arrange(grid) %>%
+  write_csv( '../BirdData_clean/Birds_AllPreds_noELEV.csv')
+```
+
+# Data and Package loading
+
+```{r warning = FALSE, message = FALSE}
+library(vegan)
+
+source( '../Scripts/variPart_returnboth.R')  ## variPart_returnboth
+
+Predictors <- read_csv('../BirdData_clean/Birds_AllPreds_noELEV.csv' )
+PA_1970_all <-  read_csv('../BirdData_clean/focalBirds_AllC_1970.csv' )
+PA_1970_HQ  <-  read_csv('../BirdData_clean/focalBirds_High_1970.csv' )
+PA_2010_all <-  read_csv('../BirdData_clean/focalBirds_AllC_2010.csv' )
+PA_2010_HQ  <-  read_csv('../BirdData_clean/focalBirds_High_2010.csv' )
+
+```
+
+# Predictors to keep
+
+```{r}
+corrplot::corrplot(cor(Predictors[,-1]))
+## - Very strong corrlations between urban and suburban
+
+corrplot::corrplot(cor(Predictors[,c(4,8, 13, 15, 11, 12)]))
+
+## Combine the urban predictors
+Predictors %>%
+  arrange(grid) %>%
+  mutate( UrbanSuburban = Urban+Suburban) %>%
+  select(-grid, - Urban, -Suburban) %>%
+select(`Broadleaved woodland`:Mountain_Heath_Bog,UrbanSuburban, starts_with('MEM')) %>%  # reorder
+  as.matrix() -> X_formatted  
+
+rownames(X_formatted) <- arrange(Predictors,grid)$grid  
+
+write.csv(X_formatted, '../BirdData_clean/Bird_X_formatted.csv')
+```
+
+# Species to keep 
+
+
+## Not too common or rare 
+
+Set threshold at least 5 sites must be occupied or unoccupied, *in both years*. NB excludes some big changers like Red Kites...
+
+```{r}
+### function that keeps only those that fit criteria
+
+InformativeOccu <- function(Occ_mat , minSites = 5){
+  n_sites = (ncol(Occ_mat)-1) 
+  Occupancy <-  rowSums(Occ_mat[,-1])
+  Occ_mat_informative =  Occ_mat[ (Occupancy>=minSites)  & (n_sites-Occupancy >= minSites), ]
+  return(Occ_mat_informative)
+}
+
+inform_PA_1970_all<- InformativeOccu(PA_1970_all)
+inform_PA_1970_HQ <- InformativeOccu(PA_1970_HQ )
+inform_PA_2010_all<- InformativeOccu(PA_2010_all)
+inform_PA_2010_HQ <- InformativeOccu(PA_2010_HQ )
+
+```
+
+## Appear in both
+
+Making sure that there is a consistent list of species in both trials
+
+```{R}
+
+## High quality 
+Shared_HQ = intersect(inform_PA_1970_HQ$english_name,
+                      inform_PA_2010_HQ$english_name )
+
+## All 
+Shared_all  = intersect(inform_PA_1970_all$english_name,
+                        inform_PA_2010_all$english_name )
+```
+
+## Excluding non-native oddities
+
+```{r}
+bou_LIST <- read_csv('../BirdData_clean/BOU_British_List.csv')
+count(bou_LIST, Category)
+
+bou_LIST %>%
+  mutate(  CatAorC2 = str_detect(Category, 'A')|str_detect(Category, 'C2'), 
+           Introduced = str_detect(Category, 'C')) %>%
+  filter(!CatAorC2)
+
+
+bind_rows(PA_1970_all,PA_2010_all ) %>%
+  distinct(english_name) %>%
+  left_join( bou_LIST, by = c('english_name' = 'British (English) vernacular name')) -> withBOU_Categories 
+
+## 11 weird unwanted species either not in overlap or not in category A or C2 (Naturalized established species – species with established populations resulting from introduction by Man, but which also occur in an apparently natural state,)
+
+withBOU_Categories%>%
+  mutate(  CatAorC2 = str_detect(Category, 'A')|str_detect(Category, 'C2'), 
+           Introduced = str_detect(Category, 'C'))%>%
+  filter(!CatAorC2 | is.na(Category)) -> SpeciesToExclude_nonnative
+
+SpeciesToExclude_nonnative
+
+```
+
+```{r}
+### removing non_natives
+## 75 species
+finalSP_HQ <- Shared_HQ[!(Shared_HQ %in% SpeciesToExclude_nonnative$english_name)]  ##  "Ruddy Duck""Red-legged Partridge" "Little Owl"  
+
+## 80 species
+finalSP_all <- Shared_all[!(Shared_all %in% SpeciesToExclude_nonnative$english_name)]  ##  "Ruddy Duck""Red-legged Partridge" "Little Owl"  
+
+
+save(finalSP_HQ, file = '../BirdData_clean/finalSP_HQ' )
+save(finalSP_all, file = '../BirdData_clean/finalSP_all' )
+
+```
+
+
+
+# Plotting a Map of Sites
+
+```{r}
+library(maps)
+UK =  map_data("world") %>% filter(region == 'UK')
+
+Focal_xy %>%
+  as.data.frame() %>%
+  ggplot( aes( x = long, y = lat))+
+  geom_map(data = UK, map = UK, aes(long, lat, map_id = region) , fill = 'grey')+
+  geom_point(shape = 4)+
+  scale_color_viridis_d()+
+  geom_hline(yintercept =c(51,54.3))+
+  geom_vline(xintercept = c(-2.3,-0.9 ))+
+  theme_minimal()+
+  coord_map(xlim = c( -4, 2), ylim = c( 50, 55))+
+  ylab('')+xlab('')
+ggsave( 'BirdImages/HectadLocations.png', height = 5, width = 4, dpi = 500)
+```

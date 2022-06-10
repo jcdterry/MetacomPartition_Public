@@ -1,0 +1,206 @@
+---
+title: "Bird Model Fitting"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+# Data and Package loading
+
+```{r warning = FALSE, message = FALSE}
+library(tidyverse)
+library(HMSC)
+select <- dplyr::select
+map<-purrr::map
+
+source( '../Scripts/variPart_returnboth.R')  ## variPart_returnboth
+
+PA_1970_all <-  read_csv('../BirdData_clean/focalBirds_AllC_1970.csv' )
+PA_1970_HQ  <-  read_csv('../BirdData_clean/focalBirds_High_1970.csv' )
+PA_2010_all <-  read_csv('../BirdData_clean/focalBirds_AllC_2010.csv' )
+PA_2010_HQ  <-  read_csv('../BirdData_clean/focalBirds_High_2010.csv' )
+
+
+## Object with which species to include
+load('../BirdData_clean/finalSP_HQ' )
+load('../BirdData_clean/finalSP_all' )
+
+## Table of predictor variables
+X_formatted<- read.csv('../BirdData_clean/Bird_X_formatted.csv', row.names = 1) ## nb need to bring in row names
+
+dir.create('../SavedObjects/BirdModels/')
+dir.create('../SavedObjects/BirdVPs/')
+
+```
+
+# Model fitting
+
+Because only 4 sets (2 periods x 2 data qualities), not bothering to split over many cores
+Will run 4 replicate chains to check convergence. 
+
+### MCMC settings
+
+Seemed to get pretty good convergence with 10k burn, 4k sample, but will double for actual runs
+
+```{r}
+niter = 50000
+nburn = 30000
+thin = 20
+
+## Variance partitioning
+X_groups <- c(rep("env",12),   # fitting 11 direct environmental terms + intercept
+              rep("spa",10))  ## and num terms used from MEM
+```
+
+## All Observations
+
+### 1970
+
+```{r}
+SpeciesData <- PA_1970_all %>%
+  filter( english_name %in% finalSP_all)
+
+SpeciesData[,-1] %>% t %>%
+  as.data.frame() %>% rownames_to_column() %>%
+  arrange(rowname) %>% select(-rowname)%>%
+  as.matrix() -> Site_by_Sp_Mat
+ 
+colnames(Site_by_Sp_Mat)<- SpeciesData$english_name
+rownames(Site_by_Sp_Mat) <- sort(colnames(SpeciesData[,-1]))
+
+formData <- as.HMSCdata(Y = Site_by_Sp_Mat ,  X = X_formatted,
+                        Random = as.factor(1:nrow(Site_by_Sp_Mat)),         
+                        scaleX = TRUE,   interceptX = TRUE)
+
+model<-  hmsc(formData, family = "probit", niter = niter, nburn = nburn, thin = thin)  
+save(model,  file = '../SavedObjects/BirdModels/PA_1970_all_hmscmodel1')
+
+# Repeating chain for convergence testing
+model2<-  hmsc(formData, family = "probit",niter = niter, nburn = nburn, thin = thin )
+model3<-  hmsc(formData, family = "probit",niter = niter, nburn = nburn, thin = thin )
+model4<-  hmsc(formData, family = "probit",niter = niter, nburn = nburn, thin = thin )
+
+save(model2, file = '../SavedObjects/BirdModels/PA_1970_all_hmscmodel2')
+save(model3, file = '../SavedObjects/BirdModels/PA_1970_all_hmscmodel3')
+save(model4, file = '../SavedObjects/BirdModels/PA_1970_all_hmscmodel4')
+
+## Variance partitioning
+PA_1970_all_both_fracandr2<-variPart_returnboth(model,groupX = X_groups,
+                                    type = "III",  R2adjust = TRUE) 
+
+save(PA_1970_all_both_fracandr2,file =  '../SavedObjects/BirdVPs/foc_PA_1970_all_both_fracandr2')
+```
+
+### 2010
+
+```{r}
+SpeciesData <- PA_2010_all%>%
+  filter( english_name %in% finalSP_all)
+
+SpeciesData[,-1] %>% t %>%
+  as.data.frame() %>% rownames_to_column() %>%
+  arrange(rowname) %>% select(-rowname)%>%
+  as.matrix() -> Site_by_Sp_Mat
+ 
+colnames(Site_by_Sp_Mat)<- SpeciesData$english_name
+rownames(Site_by_Sp_Mat) <- sort(colnames(SpeciesData[,-1]))
+
+formData <- as.HMSCdata(Y = Site_by_Sp_Mat ,  X = X_formatted,
+                        Random = as.factor(1:nrow(Site_by_Sp_Mat)),         
+                        scaleX = TRUE, interceptX = TRUE)
+model<-  hmsc(formData, family = "probit", niter = niter, nburn = nburn, thin = thin)  
+save(model,  file = '../SavedObjects/BirdModels/PA_2010_all_hmscmodel1')
+
+## Repeating chain for convergence testing
+model2<-  hmsc(formData, family = "probit",niter = niter, nburn = nburn, thin = thin )
+model3<-  hmsc(formData, family = "probit",niter = niter, nburn = nburn, thin = thin )
+model4<-  hmsc(formData, family = "probit",niter = niter, nburn = nburn, thin = thin )
+
+save(model2, file = '../SavedObjects/BirdModels/PA_2010_all_hmscmodel2')
+save(model3, file = '../SavedObjects/BirdModels/PA_2010_all_hmscmodel3')
+save(model4, file = '../SavedObjects/BirdModels/PA_2010_all_hmscmodel4')
+
+PA_2010_all_both_fracandr2<-variPart_returnboth(model,groupX = X_groups,
+                                    type = "III",  R2adjust = TRUE) 
+
+save(PA_2010_all_both_fracandr2,file =  '../SavedObjects/BirdVPs/foc_PA_2010_all_both_fracandr2')
+```
+
+## Confirmed/Probable Observations
+
+### 1970
+
+```{r}
+SpeciesData <- PA_1970_HQ %>%
+  filter( english_name %in% finalSP_HQ)
+
+SpeciesData[,-1] %>% t %>%
+  as.data.frame() %>% rownames_to_column() %>% # arrange by site
+  arrange(rowname) %>% select(-rowname)%>%
+  as.matrix() -> Site_by_Sp_Mat
+ 
+colnames(Site_by_Sp_Mat)<- SpeciesData$english_name
+rownames(Site_by_Sp_Mat) <- sort(colnames(SpeciesData[,-1]))
+
+formData <- as.HMSCdata(Y = Site_by_Sp_Mat ,                   
+                        X = X_formatted,
+                        Random = as.factor(1:nrow(Site_by_Sp_Mat)),         
+                        scaleX = TRUE, 
+                        interceptX = TRUE)
+
+model<-  hmsc(formData, family = "probit", niter = niter, nburn = nburn, thin = thin)  
+save(model,  file = '../SavedObjects/BirdModels/PA_1970_HQ_hmscmodel1')
+
+# ## Repeating chain for convergence testing
+model2<-  hmsc(formData, family = "probit",niter = niter, nburn = nburn, thin = thin )
+model3<-  hmsc(formData, family = "probit",niter = niter, nburn = nburn, thin = thin )
+model4<-  hmsc(formData, family = "probit",niter = niter, nburn = nburn, thin = thin )
+
+save(model2, file = '../SavedObjects/BirdModels/PA_1970_HQ_hmscmodel2')
+save(model3, file = '../SavedObjects/BirdModels/PA_1970_HQ_hmscmodel3')
+save(model4, file = '../SavedObjects/BirdModels/PA_1970_HQ_hmscmodel4')
+
+## Variance partitioning
+PA_1970_HQ_both_fracandr2<-variPart_returnboth(model,groupX = X_groups,
+                                    type = "III",  R2adjust = TRUE) 
+
+save(PA_1970_HQ_both_fracandr2,file =  '../SavedObjects/BirdVPs/foc_PA_1970_HQ_both_fracandr2')
+```
+
+### 2010
+
+```{r}
+SpeciesData <- PA_2010_HQ%>%
+  filter( english_name %in% finalSP_HQ)
+
+SpeciesData[,-1] %>% t %>%
+  as.data.frame() %>% rownames_to_column() %>%
+  arrange(rowname) %>% select(-rowname)%>%
+  as.matrix() -> Site_by_Sp_Mat
+ 
+colnames(Site_by_Sp_Mat)<- SpeciesData$english_name
+rownames(Site_by_Sp_Mat) <- sort(colnames(SpeciesData[,-1]))
+
+formData <- as.HMSCdata(Y = Site_by_Sp_Mat ,    X = X_formatted,
+                        Random = as.factor(1:nrow(Site_by_Sp_Mat)),         
+                        scaleX = TRUE, 
+                        interceptX = TRUE)
+
+model<-  hmsc(formData, family = "probit", niter = niter, nburn = nburn, thin = thin)  
+save(model,  file = '../SavedObjects/BirdModels/PA_2010_HQ_hmscmodel1')
+
+## Repeating chain for convergence testing
+model2<-  hmsc(formData, family = "probit",niter = niter, nburn = nburn, thin = thin )
+model3<-  hmsc(formData, family = "probit",niter = niter, nburn = nburn, thin = thin )
+model4<-  hmsc(formData, family = "probit",niter = niter, nburn = nburn, thin = thin )
+
+save(model2, file = '../SavedObjects/BirdModels/PA_2010_HQ_hmscmodel2')
+save(model3, file = '../SavedObjects/BirdModels/PA_2010_HQ_hmscmodel3')
+save(model4, file = '../SavedObjects/BirdModels/PA_2010_HQ_hmscmodel4')
+
+## Variance partitioning
+PA_2010_HQ_both_fracandr2<-variPart_returnboth(model,groupX = X_groups,
+                                    type = "III",  R2adjust = TRUE) 
+
+save(PA_2010_HQ_both_fracandr2,file =  '../SavedObjects/BirdVPs/foc_PA_2010_HQ_both_fracandr2')
+```

@@ -1,0 +1,402 @@
+---
+title: "Butterfly Model Fit Analysis"
+output: 
+  html_document: 
+    toc: yes
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Running models
+
+
+```{r warning = FALSE, message = FALSE}
+library( tidyverse)
+library(ggtern)
+library(HMSC)
+select <- dplyr::select
+library(corrplot)
+library(broom)
+library(cowplot)
+```
+
+## Loading Data
+
+Fitting handled by output of `BF_Version2_perc2_log_env.R` i.e. cutting off those with mean less than 2% presence / absence, and logging some of the environmental variables. 
+
+```{r}
+Outs<-list.files(path = paste0('../SavedObjects/HMSC_Bf2_perc2_log_env/'), full.names = TRUE)
+AllRuns_HMSC2test<-map_df( Outs, read_csv, show_col_types = FALSE)
+ButterflyNames <- read_csv('../Data/ButterflyNames.csv', show_col_types = FALSE)
+
+SITES <- read_csv('../Data/Site_selection2_CHALK.csv')
+
+colnames(AllRuns_HMSC2test)
+load('../Data/YearSlices2000x2020_v2_2perc_nomoths')   
+```
+
+# Correlation 
+
+```{r}
+cor(SITES[,-1]) %>% corrplot()
+SITES$CHALK %>% table
+```
+
+# Occupancy through time
+
+```{r}
+map_df(Year_Slices, .f = function( x){
+  return(colSums(x[,-1]))
+} ) -> OccupancyPerYear
+
+
+data.frame(TotalOccupancy = 100*rowSums(OccupancyPerYear)/(42*97),
+           Year = 2000:2020) %>%
+  ggplot( aes( x = Year, y = TotalOccupancy))+
+  geom_point()+
+  geom_line()+
+  theme_minimal()+ ylab( 'Total Occupancy\nPercentage')+
+  coord_cartesian(ylim = c(0,100 ))
+
+ggsave( '../ButterflyMarkdowns/ButterflySIFigs/TotalOccupancy.png',
+        height = 4, width = 4, dpi = 500)
+
+
+OccupancyPerYear%>%
+  mutate(Year = 2000:2020) %>%
+  gather( 'SciName', 'Occupancy', -Year) %>%
+  left_join( ButterflyNames, by = "SciName") -> OccupancyDF 
+```
+
+### Species Occupancy
+
+```{r}
+
+OccupancyDF %>%
+  ggplot(aes( x = Year, y = Occupancy))+
+  geom_point()+
+  geom_line()+
+  facet_wrap(~CommName, ncol = 6)+
+  theme_minimal()
+
+ggsave('ButterflySIFigs/SpOccupancy.png',
+       height = 10, width = 14, dpi = 500)
+
+```
+
+# Partitioning
+
+## Overall Averages
+
+```{r}
+AllRuns_HMSC2test%>%
+  group_by(Year) %>%
+  summarise(MeanEnv = mean(Part_env), 
+            MeanSpa = mean(Part_spa), 
+            MeanCoDist = mean(Part_codist),
+            MeanR2 = mean(Part_R2_sum)) -> AllRuns_Means_HMSC_cutdown
+
+AllRuns_Means_HMSC_cutdown %>%
+  select( Year, Envrionmental =  MeanEnv,
+          Spatial =  MeanSpa,
+          Codistribution= MeanCoDist) %>%
+  gather('Metric', 'Value', -Year  )%>%
+  mutate( LineType = ifelse(Metric == 'Codistribution', 'A', 'B' ))%>%
+  ggplot( aes( x = Year, y = Value   ))+
+  geom_point()+
+  facet_wrap(~Metric, scale =  'free_y', nrow = 1)+
+  geom_smooth(method = 'lm', se = FALSE, aes( linetype= LineType))+
+  ylab(bquote('Variance Explained\n'~(R[adjust]^2)))+ guides( linetype = FALSE)+
+  theme_minimal()
+
+ggsave(filename = '../ButterflyMarkdowns/ButterflySIFigs/MainButterflyResults.png',
+       width = 10, height = 4, dpi = 500)
+
+```
+
+### Statistics
+
+```{r}
+lm(data = AllRuns_Means_HMSC_cutdown, MeanEnv ~ Year) %>% summary
+lm(data = AllRuns_Means_HMSC_cutdown, MeanCoDist ~ Year) %>% summary
+lm(data = AllRuns_Means_HMSC_cutdown, MeanSpa ~ Year) %>% summary
+lm(data = AllRuns_Means_HMSC_cutdown, MeanR2 ~ Year) %>% summary
+
+```
+## Split by Species
+
+```{r fig.height=16, fig.width=10}
+
+AllRuns_HMSC2test%>%
+  select( Species, Year,
+          Environmental = Part_env ,
+          Spatial = Part_spa ,
+          Codistribution = Part_codist ) %>%
+  left_join(OccupancyDF, by = c('Species' = 'SciName', 'Year' )) %>%
+  mutate( Occupancy = Occupancy /97) %>%
+  gather('Metric', 'Value',    Environmental ,Spatial ,Codistribution, Occupancy )%>%
+  ggplot( aes( x = Year, y = Value    , col = Metric   ))+
+  geom_point()+
+  theme_minimal()+
+  theme(legend.position = 'bottom')+
+  facet_wrap(~CommName, ncol = 6)+
+  scale_colour_manual( values = c('lightskyblue3', 'palegreen4','gold2',  'brown'),
+                       limits = c('Codistribution','Environmental' ,'Spatial', 'Occupancy'))+
+  geom_smooth(method = 'lm', se = FALSE)
+
+ggsave( '../ButterflyMarkdowns/ButterflySIFigs/SpeciesResponses.png',
+        height = 14, width = 12, dpi = 500)
+
+```
+
+
+# Examining Model Fits
+
+NB full model fits not included in public repository (500Mb)
+
+```{R}
+Models<-list.files('../SavedObjects/HMSC_Bf2_perc2_log_env_fits/', full.names = TRUE)
+
+MainModels<- Models[!str_ends(Models, '_2')]
+N_Species <- length(unique(AllRuns_HMSC2test$Species))
+
+EnvCoeffs <- array( NA, dim = c( N_Species, 7, 21))  ## [species , var, year]
+Omegas <- array( NA, dim = c( N_Species, N_Species, 21))  ## [species , species, year]
+
+for( i in 1:21 ){
+  load( MainModels[i])
+  fittedParams <-apply( model$results$estimation$paramX,MARGIN =c(1,2), FUN = mean)
+  EnvCoeffs[,,i] <- fittedParams[,1:7]
+  Array_Omega <-corRandomEff(model, cor = TRUE, burning = FALSE)[,,,1] ##  [sp1, sp2, mcmc slice, latentname]
+  Mean_Omega <- apply(Array_Omega, MARGIN = c(1,2), mean)
+  Omegas[,,i] <- Mean_Omega
+}
+```
+
+
+
+## Species Envrionmental Dependencies
+
+```{r fig.height=15, fig.width=10}
+
+data.frame( SciName=  colnames(model$data$Y)) %>%
+  left_join(ButterflyNames, by = "SciName")-> Names_Ordered
+
+Mean_EnvCoeffs <- apply(EnvCoeffs, c(1,2), mean)
+SD_EnvCoeffs <-  apply(EnvCoeffs, c(1,2), sd)
+
+
+## Names 
+ colnames(model$data$X)[1:7]
+ 
+ NiceNames <- c("Intercept",
+                "Mean\nTemperature",
+                "Woodland",
+                "Farming",
+                "Urban",
+                "Calcareous\nGrassland",
+                "Chalk\nBedrock")     
+ 
+colnames(Mean_EnvCoeffs)  <- NiceNames
+
+bind_cols(Mean_EnvCoeffs,Names_Ordered)%>%
+  as.data.frame() %>%
+  select(-SciName, - Intercept) %>%
+  gather('predictor', 'coeff',  - CommName   )%>%
+  ggplot(aes( x = predictor, y = CommName, fill = coeff ))+
+  geom_tile(alpha = 1)+
+  scale_fill_gradient2(mid = 0, name = 'Average\nFitted\nCoefficient')+
+    scale_y_discrete(limits=rev)+
+  ylab('') +xlab('') -> Env_Coeff_Plot
+
+ggsave(Env_Coeff_Plot, 
+       filename = '../ButterflyMarkdowns/ButterflySIFigs/EnvCoeffs.png',
+       width = 8, height = 10, dpi = 500)
+        
+
+###
+colnames(SD_EnvCoeffs)  <- NiceNames
+
+bind_cols(SD_EnvCoeffs,Names_Ordered)%>%
+  as.data.frame() %>%
+  select(-SciName, - Intercept) %>%
+  gather('predictor', 'SD_coeff',  - CommName   ) %>%
+  ggplot(aes( x = predictor, y = CommName, fill = SD_coeff ))+
+  geom_tile(alpha = 1)+
+    scale_y_discrete(limits=rev)+
+  ylab('') +xlab('') +
+  scale_fill_viridis_c() -> Env_SD_Plot
+
+
+plot_grid(Env_Coeff_Plot+theme(legend.position = 'bottom') ,
+          Env_SD_Plot+theme(legend.position = 'bottom'),
+          scale = 0.9,
+          labels = c('Average fitted coefficent', 
+                     'SD in fitted coefficent'))
+
+```
+
+
+## Species Associations. 
+
+```{r}
+Mean_Omegas <- apply(Omegas, c(1,2), mean)
+SD_Omegas <-  apply(Omegas, c(1,2), sd)
+
+rownames(Mean_Omegas) <- Names_Ordered$CommName
+rownames(SD_Omegas) <- Names_Ordered$CommName
+colnames(Mean_Omegas) <- Names_Ordered$CommName
+colnames(SD_Omegas) <- Names_Ordered$CommName
+
+```
+
+```{R fig.height=12, fig.width=12}
+
+Mean_Omegas %>%
+    corrplot(corr =., title = 'Mean Omega', order = 'hclust', tl.col = 1)
+
+png(filename = '../ButterflyMarkdowns/ButterflySIFigs/SpAssCoeffs.png',
+    width = 12, height = 12, res = 500, units = 'in' )
+
+Mean_Omegas %>%
+    corrplot(corr =., order = 'hclust', tl.col = 1)
+dev.off()
+
+
+  SD_Omegas %>%
+    corrplot(corr =., title = 'SD Omega', order = 'hclust')
+```
+
+
+# Convergence
+
+### Year 2000
+```{r eval = FALSE}
+
+library(coda)
+
+SpreadArray <- function( i, Array_Omega){ 
+  ##for coda, need each element in a separate column, but only need lower half of diagonal
+  XX<- Array_Omega[,,i,1]
+  return(as.data.frame(t(as.matrix(XX[lower.tri(XX)], nrow =1))))
+}
+
+CalcGelmanDiags <- function(Year){
+  
+  
+  load(paste0('../SavedObjects/HMSC_Bf2_perc2_log_env_fits/model_',Year))
+  load(paste0('../SavedObjects/HMSC_Bf2_perc2_log_env_fits/model_',Year,'_2'))
+  
+  ### Main predictors (Spatial and Envrionmental)
+  coda1_param <- as.mcmc(model,  parameters = "paramX")
+  coda2_param <- as.mcmc(model2, parameters = "paramX")
+  
+  coda_list = mcmc.list(coda1_param,coda2_param)
+  
+  Gelmans_Main<- gelman.diag(coda_list, multivariate = FALSE)
+  
+  ## Convergence of latents
+  ## a bit more complex, as need to first get to 'omegas',  the residual effect of each species on each other.  
+  
+  Array_Omega1 <-corRandomEff(model, cor = TRUE, burning = FALSE) ##  [sp1, sp2, mcmc slice, latentname]
+  Array_Omega2 <-corRandomEff(model2, cor = TRUE, burning = FALSE) ##  [sp1, sp2, mcmc slice, latentname]
+  
+  MCMC_length = dim(Array_Omega1)[3]
+  Omega_MCMC1<- map_dfr(1:MCMC_length, SpreadArray, Array_Omega1)
+  Omega_MCMC2<- map_dfr(1:MCMC_length, SpreadArray, Array_Omega2)
+  
+  Omega_MCMC_list <- mcmc.list(as.mcmc(Omega_MCMC1), as.mcmc(Omega_MCMC2))
+
+  Gelmans_omega<- gelman.diag(Omega_MCMC_list, multivariate = FALSE, transform = TRUE)
+  
+  Gelmans_omega_df <- as.data.frame(Gelmans_omega$psrf) 
+  Gelmans_Main_df <- as.data.frame(Gelmans_Main$psrf)
+  Gelmans_omega_df$Year <-Year
+  Gelmans_Main_df$Year <-Year
+  cat(Year)
+  gc()
+  return(list( Main =Gelmans_Main_df, Omega =Gelmans_omega_df  ) )
+}
+
+
+GelmanDiagResults<- purrr::map(2000:2020, CalcGelmanDiags)
+
+### Takes a little while, so saving
+save(GelmanDiagResults, file = '../SavedObjects/GelmanDiagResults_logenvfits' )
+```
+
+
+```{r}
+
+load('../SavedObjects/GelmanDiagResults_logenvfits' )
+
+MainCoefficents <- map_df(GelmanDiagResults,  'Main')
+Omegas <- map_df(GelmanDiagResults,  'Omega')
+
+
+MainCoefficents %>%
+  ggplot(aes( `Point est.`))+
+  geom_histogram(bins = 50)+
+ # facet_wrap(~Year)+
+  geom_vline( xintercept = 1.1, linetype= 3)+
+    geom_vline( xintercept =1.2, linetype= 2)+
+  theme_minimal()+
+  xlab('Point Estimate of\nGelman-Rubin Diagnostic') -> MainEffects_plot
+
+
+Omegas %>%
+  ggplot(aes( `Point est.`))+
+  geom_histogram(bins = 50)+
+  geom_vline( xintercept = 1.1, linetype= 3)+
+    geom_vline( xintercept =1.2, linetype= 2)+
+  theme_minimal()+
+  xlab('Point Estimate of\nGelman-Rubin Diagnostic') -> Omega_plot
+
+
+Omegas%>%
+  arrange(desc( `Point est.`)) %>%
+  head
+
+
+
+plot_grid(MainEffects_plot, Omega_plot, 
+          labels = c('a) Main Effects',
+                     'b) Omega Entries' ), scale = 0.9)
+
+ggsave('ButterflySIFigs/ButterflyConvergence_GR.png', 
+       width = 10, height = 5, dpi = 500)
+
+```
+
+
+# Map of Sites
+
+```{r}
+
+library(maps)  # nb this overwrites purrr ,map()
+UK =  map_data("world") %>% filter(region == 'UK')
+
+SiteDetails <- read_csv('../Data/SiteDetails.csv') %>%
+  select( OSGR, Lat, Long)
+
+SITES %>%
+  left_join( SiteDetails, by = 'OSGR') %>%
+  ggplot( aes( x = Long, y = Lat))+
+  geom_map(data = UK, map = UK, aes(long, lat, map_id = region) , fill = 'grey', col = 'grey25')+
+  geom_point(pch = 4, size = 0.8)+
+  scale_color_viridis_d()+
+  geom_hline(yintercept = 53.5)+
+  geom_vline(xintercept = -3.5)+
+  theme_minimal()+
+  coord_map(xlim = c( -4, 2), ylim = c( 50, 55))+
+  ylab('')+
+  xlab('')
+
+ggsave( 'ButterflySIFigs/ButterflySiteMaps.png', height = 5, width = 4, dpi = 500)
+
+```
+

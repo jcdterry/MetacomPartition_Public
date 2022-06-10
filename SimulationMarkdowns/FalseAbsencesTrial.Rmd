@@ -1,0 +1,146 @@
+---
+title: "False Absences Trial"
+author: "Chris Terry"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+
+
+```{r warning=FALSE, message = FALSE}
+library(tidyverse)
+select<-dplyr::select
+```
+
+
+# Introduction
+
+This document runs a slightly more constrained set of model parameters, but also introduces varying levels of false absences to the data.  Shell and execution scripts are `TrialObsQual.R` and `TrialObsQual.sh` 
+
+
+```{r}
+TrialName="TrialObsQual"
+
+set.seed(1)
+
+## 3 levels of each of the 4 variables, 5 total reps of each.
+## Crossed with 4 levels of false absences (0, 0.05, 0.1, 0.2)
+## (1620 runs total)
+
+InputParameters <- expand.grid(Disp= 10^c(-5, -4, -3),  
+                               comp_str= c( 0.3, 0.8, 1.1),
+                               R_max = c( 5, 20, 40), 
+                               EnvNoiseSigma = 10^c(-3, -2, -1),
+                               FalseAbsenceFrac= c(0, 0.05, 0.1, 0.2), 
+                               Repeat=c('A', 'B', 'C', 'D', 'E'))
+NumRuns = nrow(InputParameters)
+
+InputParameters$RunID = 1:NumRuns
+InputParameters$RunName = TrialName
+InputParameters$S_global = 50
+InputParameters$Occ_thresh = 0.1
+InputParameters$comp_conn= 0.01
+
+
+write_csv(InputParameters, paste0('../Parameters/' ,TrialName, '.csv' ))
+```
+
+
+
+```{r eval = FALSE}
+
+Outs<-list.files(path = paste0('../SavedObjects/', TrialName, '_VP'), full.names = TRUE)
+
+AllRuns<-map_df( Outs,read_csv, show_col_types = FALSE)
+
+write_csv(AllRuns, '../SavedObjects/TrialObsQual.csv')
+```
+
+
+```{r}
+AllRuns<- read_csv('../SavedObjects/TrialObsQual.csv')
+InputParameters <- read_csv(paste0('../Parameters/' ,TrialName, '.csv' ))
+
+AllRuns%>%
+    set_names(c( "c", "b", "a", "e", "f", "d", "g", "Sample", "species", "prevalance", 'Occ_thresh', 'RunID')) %>%
+    transmute(RunID=RunID, species = species,
+              Sample = Sample, prevalance=prevalance, 
+              env = a + f + 0.5 * d + 0.5 * g,
+              env = ifelse(env < 0, 0, env),
+              spa = b + e + 0.5 * d + 0.5 * g,
+              spa = ifelse(spa < 0, 0, spa),
+              codist = c,
+              codist = ifelse(codist < 0, 0, codist),
+              r2 = env + spa + codist) -> VP_ALL
+
+VP_ALL %>%
+  group_by(RunID, Sample)%>%
+  mutate(Sample = if_else(Sample=='Before_WithTempVar', 'Before', 'During')) %>%
+  summarise( Mean_env = mean(env),
+             Mean_spa = mean(spa),
+             Mean_codist = mean(codist),
+             Mean_r2 = mean(r2)) %>%
+  pivot_wider(id_cols = RunID ,
+              names_from = Sample , 
+              values_from =  starts_with('Mean_')) %>%
+  mutate( Shift_Env  =Mean_env_During-Mean_env_Before ,
+          Shift_Spa =Mean_spa_During-Mean_spa_Before ,
+          Shift_CoDist = Mean_codist_During-Mean_codist_Before,
+          Shift_r2 = Mean_r2_During - Mean_r2_Before) %>%
+  left_join(InputParameters, by = "RunID") -> AllData
+
+```
+
+
+# Main results
+
+```{r}
+
+VP_ALL %>%
+  filter( Sample=='Before_WithTempVar' ) %>%
+  group_by( RunID) %>%
+  summarise(N_Sp = n(),
+            AveragePrevelence = mean( prevalance    )) %>%
+  left_join(InputParameters, by = "RunID") %>%
+  ggplot( aes(y =AveragePrevelence,
+              x = factor(FalseAbsenceFrac)  ))+
+  geom_boxplot( )
+
+
+```
+
+
+
+```{r}
+AllData %>%
+  select( RunID, starts_with('Shift_'), FalseAbsenceFrac ) %>%
+  rename( Codistribution=Shift_CoDist, 
+           Environmental=Shift_Env,
+           Spatial=Shift_Spa,
+           Total= Shift_r2) %>%
+  gather( 'Aspect', 'Fraction', Environmental , Spatial ,Codistribution,Total)%>%
+  ggplot( aes( y=Fraction, x = factor(FalseAbsenceFrac), fill = Aspect ))+
+  geom_boxplot()+
+  ylab( 'Shift in Explanatory Power')+
+  xlab('Fraction False Absences')+
+  # scale_x_discrete(  limits =+
+  scale_fill_manual( values = c('lightskyblue3', 'palegreen4','gold2',  'pink'),
+                     limits = c('Codistribution','Environmental' ,'Spatial', 'Total'))+
+   geom_hline(yintercept = 0, linetype = 2, size = 2)+
+  guides( fill = FALSE)+
+  coord_cartesian(ylim = c( -0.1, 0.1) )+
+  theme_minimal()+
+  facet_wrap(~Aspect)
+
+ggsave( 'Figures/FalseAbs.png', height = 5, width =5, dpi = 500)
+
+```
+
+
+
