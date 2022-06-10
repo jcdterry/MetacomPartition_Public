@@ -59,10 +59,10 @@ The TrackThroughTime folders contain results from the trial that was used to mak
 ## Butterflies
 
 The summary variance partitioning results for each year are saved as .csvs in `SavedObjects/HMSC_Bf2_perc2_log_env`.
-The full model fits from STAN are too large. 
+The full model fits are too large. 
 
 ## Birds
 
 The summary variance partitioning results for each year are saved as R objects in `SavedObjects/BirdVPs`.
-The full model fits from STAN are too large. Code to make use of the R objects is in `Birds Analysis.Rmd`
+The full model fits are too large. Code to make use of the R objects is in `Birds Analysis.Rmd`
 
