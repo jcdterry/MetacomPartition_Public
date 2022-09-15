@@ -140,7 +140,7 @@ AllData_logg %>%
   ungroup() %>%
   select(-RunID) %>%
   rename(  'Dispersal (log delta)' = Disp , 'Competition (alpha)'  =comp_str ,
-         'Growth (gamma)' = R_max,'Variability (log sigma)' = EnvNoiseSigma ) %>%
+         'Growth (gamma)' = R_max,'Stochasticity (log sigma)' = EnvNoiseSigma ) %>%
   gather( 'InputParameter', 'Value',   -c(Aspect,Fraction) ) %>%
   mutate( Value= signif(Value,2)) %>%
   ggplot( aes( y=Fraction,  x=factor(Value) ))+
@@ -149,7 +149,7 @@ AllData_logg %>%
   geom_boxplot(aes(fill = Aspect))+
   facet_grid(Aspect~InputParameter, scales = 'free')+
   #ggtitle( 'Effect of Parameters Rate on Before Structure')+
-  xlab('Model Parameter Value\n(NB Dispersal and Variability on log10 scales)')+
+  xlab('Model Parameter Value')+
   ylab('R2 Partition\nbefore envrionemntal change')+
   theme_minimal()+
   guides( fill = FALSE)+
@@ -192,7 +192,7 @@ AllData_logg%>%
   ungroup() %>%
 select(  -RunID) %>%
   rename(  'Dispersal (log delta)' = Disp , 'Competition (alpha)'  =comp_str ,
-         'Growth (gamma)' = R_max,'Variability (log sigma)' = EnvNoiseSigma ) %>%
+         'Growth (gamma)' = R_max,'Stochasticity (log sigma)' = EnvNoiseSigma ) %>%
   gather( 'InputParameter', 'Value',   -c(Aspect,Fraction) ) %>%
   ggplot( aes( y=Fraction,  x=Value ))+
   geom_boxplot(aes(fill = Aspect, x=factor(Value) ))+
@@ -201,8 +201,8 @@ select(  -RunID) %>%
   geom_hline(yintercept = 0, col = 'black', linetype = 2)+
   facet_grid(Aspect~InputParameter, scales = 'free')+
 #  ggtitle( 'Effect of Parameters on Shifts ')+
-  xlab('Model Parameter Value\n(NB Dispersal and Variability on log10 scales)')+
-  ylab('Absolute Shift in R2 Partition\nwith envrionemntal change')+
+  xlab('Model Parameter Value')+
+  ylab('Absolute Shift in R2 Partition\nwith environmental change')+
   theme_minimal()+
   guides( fill = FALSE)+
   coord_cartesian(ylim = c( -0.15, 0.15) )+

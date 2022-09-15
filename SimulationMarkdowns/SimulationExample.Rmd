@@ -327,54 +327,67 @@ Grouped_DF %>%
 
   XXXX$BaseT = c( rep(NA,50) ,seq(0, 0.25,length.out = 25)) 
 
-  XXXX %>%
-    gather('Partition', 'Value',  MeanCodist, MeanR2, MeanSpa, MeanEnv  ) %>%
-    ggplot( aes( x = Sample, y = Value, col = Partition))+
-    geom_point()+
-    geom_smooth( se = FALSE)+
-    geom_vline( xintercept = 50)+
-    theme_minimal()+
+DataForLinePlot<- gather(XXXX,'Partition', 'Value',
+                           MeanCodist, MeanR2, MeanSpa, MeanEnv  ) %>%
+  mutate(Time = Sample+925)
+  
+DataForLinePlot %>%
+    ggplot( )+
+      geom_point(aes( x = Time, y = Value,col = Partition))+
+   # geom_smooth( se = FALSE)+
+    geom_vline( xintercept = 50+925, linetype='dashed')+
+    geom_vline( xintercept = 1000, linetype='dashed')+
+     geom_point(aes( x = Time, y = Value,  col = Partition),
+                data = filter(DataForLinePlot, Time %in% c(975, 1000)),
+             size = 1.5 ,shape = 21, col = 1, stroke = 1.5)+
+ theme_minimal()+
     ylab('Variance Explained')+
     xlab('Time')+
     scale_colour_manual( values = c('lightskyblue3', 'palegreen4','gold2',  'pink'),
                      labels = c('Codistribution','Environmental' ,'Spatial', 'Total'),
-                     limits = c('MeanCodist', 'MeanEnv' ,'MeanSpa' , 'MeanR2'))+
-    theme(legend.position = 'bottom')
-    
+                     limits = c('MeanCodist', 'MeanEnv' ,'MeanSpa' , 'MeanR2') )+
+   guides()+
+    theme(legend.position = 'bottom')-> LinePlot
   
+  LinePlot
+
+  ggsave('Figures/ExampleLinePlot.png',LinePlot,
+         width = 5.5, height = 5, dpi = 500 )
   
-XXXX %>%
-  arrange( Sample)%>%
-  ggtern(aes(x = MeanEnv, z = MeanSpa, y = MeanCodist, size = MeanR2)) +
-  geom_path( alpha = 0.8, size = 0.5,aes(color =BaseT  )) +
-geom_point(aes(color =BaseT  ), alpha = 1, size = 3) +
-  scale_T_continuous(limits=c(0,1),breaks=seq(0,1,by=0.1),
-                     labels=seq(0,1,by=0.1)) +
-  scale_L_continuous(limits=c(0.0,1),breaks=seq(0,1,by=0.1),
-                     labels=seq(0,1,by=0.1)) +
-  scale_R_continuous(limits=c(0,1),breaks=seq(0,1,by=0.1),
-                     labels=seq(0,1,by=0.1)) +
-  labs(title = '',
-       x = "", xarrow = "Environment",
-       y = "",yarrow = "Codistribution",
-       z = "", zarrow = "Spatial" ) +
-  theme_light() +
-  #scale_colour_viridis_c()+
-  scale_colour_gradient2(low = 'skyblue',mid = 'blue',
-                         high = 'red', midpoint = 0.125,
-                          name = 'Envrionmental\nChange\n')+
-  theme_showarrows() +
-  scale_size_area(limits = c(0,1), breaks = seq(0,1,0.2)) +
-  theme(panel.grid = element_line(color = "darkgrey"),
-        axis.title = element_text(size = 8),
-        legend.position = 'bottom',
-        legend.title  = element_text(size = 8),
-                legend.text = element_text(size = 8),
-        legend.key.width  = unit(1.5, 'cm'))+
-  theme_zoom_R(0.4)
+  XXXX %>%
+    arrange( Sample)%>%
+    ggtern(aes(x = MeanEnv, z = MeanSpa, y = MeanCodist, size = MeanR2)) +
+    geom_path( alpha = 0.8, size = 0.5,aes(color =BaseT  )) +
+    geom_point(aes(color =BaseT  ), alpha = 1, size = 3) +
+    scale_T_continuous(limits=c(0,1),breaks=seq(0,1,by=0.1),
+                       labels=seq(0,1,by=0.1)) +
+    scale_L_continuous(limits=c(0.0,1),breaks=seq(0,1,by=0.1),
+                       labels=seq(0,1,by=0.1)) +
+    scale_R_continuous(limits=c(0,1),breaks=seq(0,1,by=0.1),
+                       labels=seq(0,1,by=0.1)) +
+    labs(title = '',
+         x = "", xarrow = "Environment",
+         y = "",yarrow = "Codistribution",
+         z = "", zarrow = "Spatial" ) +
+    theme_light() +
+    #scale_colour_viridis_c()+
+    scale_colour_gradient2(low = 'skyblue',mid = 'blue',
+                           high = 'red', midpoint = 0.125,
+                           name = 'Environmental\nChange\n')+
+    theme_showarrows() +
+    scale_size_area(limits = c(0,1), breaks = seq(0,1,0.2)) +
+    theme(panel.grid = element_line(color = "darkgrey"),
+          axis.title = element_text(size = 8),
+          legend.position = 'bottom',
+          legend.title  = element_text(size = 8),
+          legend.text = element_text(size = 8),
+          legend.key.width  = unit(1.5, 'cm'))+
+    theme_zoom_R(0.4) -> Ternary
+  Ternary
+ggsave('Figures/TernaryPlot.png',Ternary,
+       width = 6, height = 6, dpi = 500 )
 
 
-# ggsave('Figures/TernaryPlot.png', width = 6, height = 6, dpi = 500 )
 
 ```
 
@@ -431,61 +444,136 @@ xxx<- as_tibble(bind_cols(SelectedSp, Node_loc))%>%
 
 ### Plots
 
+#### Environment
 ```{r message = FALSE, warning = FALSE}
 
 theme_nothing <- ggmap::theme_nothing
 
-## Density 
+xxx %>% ggplot(aes(x=x,y =y,fill=E1,
+             alpha = Kept))+geom_tile()+
+  scale_fill_viridis_c(option = 'B', name = '',
+                       limits = c(-0.5,1.5))+
+  coord_fixed()+
+  theme_nothing(legend = TRUE)+
+  guides(alpha = FALSE ) -> plot_E1_start
+
+
+xxx %>% ggplot(aes(x=x,y =y,fill=E1+0.25,
+             alpha = Kept))+geom_tile()+
+  scale_fill_viridis_c(option = 'B', name = '',
+                       limits = c(-0.5,1.5))+
+  coord_fixed()+
+  theme_nothing(legend = TRUE)+
+  guides(alpha = FALSE , fill=FALSE) -> plot_E1_during
+
+xxx %>% ggplot(aes(x=x,y =y,fill=E2,
+             alpha = Kept))+geom_tile()+
+  scale_alpha(range = c(0.2, 1))+coord_fixed()+ theme_nothing(legend = TRUE)+
+  guides(alpha = FALSE , fill=FALSE)+
+    scale_fill_viridis_c(option = 'B', name = '',
+                       limits = c(-0.5,1.5))-> plot_E2
+
+xxx %>% 
+  ggplot(aes(x=x,y =y,fill=E3,
+             alpha = Kept))+scale_alpha(range = c(0.2, 1))+
+  geom_tile()+ 
+  scale_fill_viridis_c(option = 'B', name = '',
+                       limits = c(-0.5,1.5))+
+    theme_nothing(legend = TRUE)+
+  guides(alpha = FALSE , fill=FALSE)+coord_fixed()-> plot_E3
+
+
+LegendE <- get_legend(plot_E1_start)
+
+```
+
+#### Growth Rates
+```{r}
+
+
+xxx %>% ggplot(aes(x=x,y =y,fill=R_Tot,
+             alpha = Kept))+
+  geom_tile()+coord_fixed()+
+  scale_alpha(range = c(0.2, 1))+ 
+  theme_nothing(legend = TRUE)+guides(alpha ='none')+
+  scale_fill_viridis_c(option = 'A', limits = c(0,1), name = 'R') -> plot_Rpre
+
+xxx %>% ggplot(aes(x=x,y =y,fill=R_Tot_change,
+                   alpha = Kept))+
+  geom_tile()+coord_fixed()+
+  scale_alpha(range = c(0.2, 1))+ theme_nothing(legend = TRUE)+
+  guides( fill="none", alpha = 'none')+
+  scale_fill_viridis_c(option = 'A', limits = c(0,1))-> plot_r_during
+
+LegendR <- get_legend(plot_Rpre)
+
+```
+
+#### Density 
+
+
+```{r}
 xxx %>% 
   ggplot(aes(x=x,y =y,fill=time1Dens,
              alpha = Kept))+
-  geom_tile()+scale_fill_viridis_c()+
-    theme_nothing()+coord_fixed()+scale_alpha(range = c(0.2, 1)) +
-  ggtitle( 'Density Pre-change') -> plotA
+  geom_tile()+scale_fill_viridis_c(limits = c(-10,2),
+                                   name = 'Log10\nDensity')+
+    theme_nothing(legend = TRUE)+coord_fixed()+
+    guides( alpha = 'none')+
+  scale_alpha(range = c(0.2, 1))-> plot_dens1
 
 
 xxx %>% 
   ggplot(aes(x=x,y =y,fill=time75Dens,
-             alpha = Kept))+scale_alpha(range = c(0.2, 1))+
+             alpha = Kept))+
+  scale_alpha(range = c(0.2, 1))+
   geom_tile()+scale_fill_viridis_c()+
-    theme_nothing()+coord_fixed()+
-  ggtitle( 'Density (End)') -> plotB
-
-xxx %>% ggplot(aes(x=x,y =y,fill=E1,
-             alpha = Kept))+geom_tile()+
-  scale_fill_viridis_c(option = 'B')+coord_fixed()+ theme_nothing()+
-  ggtitle('Envrionmental Variable 1 (Pre-change)') -> plotC
-
-xxx %>% ggplot(aes(x=x,y =y,fill=E2,
-             alpha = Kept))+geom_tile()+
-  scale_alpha(range = c(0.2, 1))+coord_fixed()+ theme_nothing()+
-  scale_fill_viridis_c(option = 'B')+ ggtitle('Envrionmental Variable 2') -> plotD
+  guides( fill="none", alpha = 'none')+
+    theme_nothing(legend = TRUE)+coord_fixed() -> plot_dens2
 
 
-xxx %>% ggplot(aes(x=x,y =y,fill=R_Tot,
-             alpha = Kept))+geom_tile()+coord_fixed()+
-  scale_alpha(range = c(0.2, 1))+ theme_nothing()+
-  scale_fill_viridis_c(option = 'A') + geom_tile()+ ggtitle('R (Pre_Change)') -> plotE
+LegendD <- get_legend(plot_dens1)
 
-xxx %>% ggplot(aes(x=x,y =y,fill=R_Tot_change,
-             alpha = Kept))+geom_tile()+coord_fixed()+
-  scale_alpha(range = c(0.2, 1))+ theme_nothing()+
-  scale_fill_viridis_c(option = 'A') + geom_tile()+ ggtitle('R (After change)') -> plotF
+```
 
+#### Combining
 
-plot_grid(  plotC, plotD,
-            plotE, plotF, 
-            plotA, plotB, 
-            ncol = 2,
-            hjust = -0.1,
-            labels = c( 'a) E1', 'b) E2',
-                        'c) Growth rate t = 0',
-                        'd) Growth Rate t = 25', 
-                        'e) Density t =0',
-                        'f) Density t= 25'),
-            label_fontface = 'plain', scale = 0.9)
+```{r}
+plot_grid( plot_E1_start+guides(fill=FALSE),
+           plot_E1_during,
+           LegendE,
+           plot_E2,
+           plot_E3,
+           LegendE,
+           plot_Rpre+guides(fill="none"),
+           plot_r_during,
+           LegendR,
+           plot_dens1+guides(fill="none"),
+           plot_dens2,
+           LegendD,
+           ncol = 3,
+           labels = c('a) E1, t=975',
+                      'b) E1, t =1000',
+                      '',
+                      'c) E2', 
+                      'd) E3',
+                      '',
+                      'e) Growth Rate, t=975',
+                      'f) Growth Rate, t =1000',
+                      '',
+                      'g) Density, t=975',
+                      'h) Density, t =1000',
+                      ''),
+           hjust = -0.1,
+           rel_widths = c(1,1,0.5,1,1,0.5,
+                          1,1,0.5,1,1,0.5),
+           label_fontface = 'plain',
+           scale = 0.9)
+                
+ggsave( 'Figures/SimulationExample_grid.png', height = 10, width = 5, dpi = 500)
 
-#ggsave( 'Figures/SimulationExample.png', height = 10, width = 5, dpi = 500)
+             
+
 
 ```
 

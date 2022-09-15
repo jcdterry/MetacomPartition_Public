@@ -200,9 +200,42 @@ SpeciesEnvAssoc%>%
   ylab('Species')+
   xlab('Habitat')+
   theme( axis.text.x = element_text(angle = -90, hjust = 0),
-         legend.position = 'top', legend.key.width = unit(1, 'cm'))
+         legend.position = 'top', legend.key.width = unit(1, 'cm')) ->Habitat1970
 
-ggsave( 'BirdImages/BirdHabitat1970HQ.png', height = 12, width = 6, dpi = 500)
+load(file = '../SavedObjects/BirdModels/PA_2010_HQ_hmscmodel1')
+
+fittedParams_10HQ <-apply( model$results$estimation$paramX,MARGIN =c(1,2), FUN = mean)
+
+EnvFit<-fittedParams_10HQ[, c( 1:12)]
+
+EnvFit %>%
+  as.data.frame() %>%
+  rownames_to_column('species') %>%
+  select(-Intercept) %>%
+  gather('predictor', 'coeff',  - species   ) -> SpeciesEnvAssoc
+
+## These all seem to make a good deal of sense
+SpeciesEnvAssoc %>%
+  arrange( desc(coeff^2)) %>%
+  head(20)
+
+SpeciesEnvAssoc%>%
+  ggplot(aes( x = predictor, y = species, fill = coeff ))+
+  geom_tile(alpha = 1)+
+  scale_fill_gradient2(mid = 0, name = 'Coefficient')+
+  scale_y_discrete(limits=rev)+
+  theme_minimal()+
+  ylab('Species')+
+  xlab('Habitat')+
+  theme( axis.text.x = element_text(angle = -90, hjust = 0),
+         legend.position = 'top', legend.key.width = unit(1, 'cm')) -> Habitat2010
+
+
+plot_grid(Habitat1970,Habitat2010, labels = c('a) 1970' , 'b) 2010'))
+
+
+
+ggsave( 'BirdImages/BirdHabitatbothHQ.png', height = 14, width = 12, dpi = 500)
 
 ```
 
