@@ -1,0 +1,343 @@
+---
+title: "Simulation Tests"
+author: "Chris Terry"
+output: 
+  html_document: 
+    toc: yes
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r warning=FALSE, message = FALSE}
+## Load packages
+library(tidyverse)
+library(igraph)
+library(HMSC)
+select<-dplyr::select
+```
+
+# Introduction
+
+This document defines the parameters used in the main simulations, and conducts the post-simulation analysis. 
+
+
+
+This repeat was run on a desktop with a different parameterisation that has totally random interactions between species 
+
+This needed two new files:
+
+BuildMC_rand
+
+and 
+
+Network Initiation_Rand.R
+
+
+# Model parameters
+
+```{r}
+TrialName="TrialRand"
+
+set.seed(1)
+
+## 6 levels of each of 4 variables, 1 repeat of each. (2592 replicates)
+
+InputParameters <- expand.grid(Disp= 10^seq(-5,  -2, length = 6),  
+                          comp_str= seq(0.2,  1.1, length = 6),
+                          R_max = seq(5, 50, length = 6), 
+                          EnvNoiseSigma = 10^seq(-3, -1 , length = 6),
+                          Repeat=c('A', 'B'))
+NumRuns = nrow(InputParameters)
+
+InputParameters$RunID = 1:NumRuns
+InputParameters$RunName = TrialName
+InputParameters$S_global = 50
+InputParameters$Occ_thresh = 0.1
+InputParameters$comp_conn= 0.025 ## increase to compensate for lack of off diagonal
+
+write_csv(InputParameters, paste0('../Parameters/' ,TrialName, '.csv' ))
+```
+
+
+# Reading in Data
+
+```{r eval = FALSE}
+Outs<-list.files(path ='TrialRand_VP', full.names = TRUE)
+AllRuns<-map_df( Outs,read_csv, show_col_types = FALSE)
+write_csv(AllRuns, 'FullRandomSimulation.csv')
+```
+
+```{r}
+InputParameters <- read_csv(paste0('../Parameters/' ,TrialName, '.csv' ))
+AllRuns <- read_csv( 'FullRandomSimulation.csv')
+AllRuns%>%
+    set_names(c( "c", "b", "a", "e", "f", "d", "g", "Sample", "species", "prevalance", 'Occ_thresh', 'RunID')) %>%
+    transmute(RunID=RunID, species = species,
+              Sample = Sample, prevalance=prevalance, 
+              env = a + f + 0.5 * d + 0.5 * g,
+              env = ifelse(env < 0, 0, env),
+              spa = b + e + 0.5 * d + 0.5 * g,
+              spa = ifelse(spa < 0, 0, spa),
+              codist = c,
+              codist = ifelse(codist < 0, 0, codist),
+              r2 = env + spa + codist) -> VP_ALL
+
+VP_ALL %>%
+  group_by(RunID, Sample)%>%
+  mutate(Sample = if_else(Sample=='Before_WithTempVar', 'Before', 'During')) %>%
+  summarise( Mean_env = mean(env),
+             Mean_spa = mean(spa),
+             Mean_codist = mean(codist),
+             Mean_r2 = mean(r2)) %>%
+  pivot_wider(id_cols = RunID ,
+              names_from = Sample , 
+              values_from =  starts_with('Mean_')) %>%
+  mutate( Shift_Env  =Mean_env_During-Mean_env_Before ,
+          Shift_Spa =Mean_spa_During-Mean_spa_Before ,
+          Shift_CoDist = Mean_codist_During-Mean_codist_Before,
+          Shift_r2 = Mean_r2_During - Mean_r2_Before) %>%
+  left_join(InputParameters, by = "RunID") -> AllData
+
+```
+
+
+# Main results
+
+```{r}
+# AllData %>%
+#   select( RunID, starts_with('Shift_')) %>%
+#   gather( 'Aspect', 'Fraction', starts_with('Shift_'))%>%
+#   ggplot( aes( y=Fraction, x = Aspect, fill = Aspect ))+
+#   geom_boxplot()+
+#   ylab(bquote('Shift in Variance Explained'~(ΔR[adjust]^2)))+
+#   xlab('Partition')+
+#   scale_x_discrete(  limits = c('Shift_CoDist', 'Shift_Env' ,'Shift_Spa' , 'Shift_r2'),
+#                     labels = c('Codistribution','Environmental' ,'Spatial', 'Total'))+
+#   scale_fill_manual( values = c('lightskyblue3', 'palegreen4','gold2',  'pink'),
+#                      limits = c('Shift_CoDist', 'Shift_Env' ,'Shift_Spa' , 'Shift_r2'))+
+#    geom_hline(yintercept = 0, linetype = 2, size = 2)+
+#   guides( fill = FALSE)+
+#   coord_cartesian(ylim = c( -0.15, 0.2) )+
+#   theme_minimal()
+
+# ggsave( 'Figures/SummaryShifts.png', height = 5, width = 6, dpi = 500, bg = 'white')
+
+AllData %>%
+  select( RunID, starts_with('Shift_')) %>%
+  gather( 'Aspect', 'Fraction', starts_with('Shift_')) %>%
+  ungroup( ) %>%
+  group_by(Aspect) %>%
+  summarise( min(Fraction), max (Fraction))
+```
+
+
+# Impact of model parameters on 'before' communities
+
+```{r}
+AllData %>%
+  mutate(EnvNoiseSigma = log10(EnvNoiseSigma),
+         Disp = log10(Disp)) -> AllData_logg
+
+
+AllData_logg %>%
+  select( RunID, ends_with('_Before'), Disp:EnvNoiseSigma) %>%
+  rename( Environmental  =  Mean_env_Before,
+          Spatial        =  Mean_spa_Before,
+          Codistribution =  Mean_codist_Before,
+          Total          =  Mean_r2_Before ) %>%
+  gather( 'Aspect', 'Fraction',
+          Environmental ,Spatial,Codistribution,Total         ) %>%
+  ungroup() %>%
+  select(-RunID) %>%
+  rename(  'Dispersal (log delta)' = Disp , 'Competition (alpha)'  =comp_str ,
+         'Growth (gamma)' = R_max,'Stochasticity (log sigma)' = EnvNoiseSigma ) %>%
+  gather( 'InputParameter', 'Value',   -c(Aspect,Fraction) ) %>%
+  mutate( Value= signif(Value,2)) %>%
+  ggplot( aes( y=Fraction,  x=factor(Value) ))+
+  #geom_point(aes(col = Aspect), alpha = 0.5, size = 0.6)+
+ # geom_smooth( col = 'black', se = FALSE)+
+  geom_boxplot(aes(fill = Aspect))+
+  facet_grid(Aspect~InputParameter, scales = 'free')+
+  #ggtitle( 'Effect of Parameters Rate on Before Structure')+
+  xlab('Model Parameter Value')+
+  ylab('R2 Partition\nbefore envrionemntal change')+
+  theme_minimal()+
+  guides( fill = FALSE)+
+  scale_fill_manual( values = c('lightskyblue3', 'palegreen4','gold2',  'pink'),
+                       limits = c('Codistribution', 'Environmental' ,
+                                  'Spatial' , 'Total'))
+
+# ggsave( 'Figures/ParamStart.png', height = 10, width = 10, dpi = 500)
+
+```
+
+
+# Impact of model parameters on observed shifts
+
+## Statistics
+
+```{r}
+### Main effects, no interactions
+lm(data =AllData_logg, Shift_CoDist ~scale(Disp)+scale(comp_str)+scale(R_max)+scale(EnvNoiseSigma)) %>% summary
+lm(data =AllData_logg, Shift_Spa    ~scale(Disp)+scale(comp_str)+scale(R_max)+scale(EnvNoiseSigma)) %>% summary
+lm(data =AllData_logg, Shift_Env    ~scale(Disp)+scale(comp_str)+scale(R_max)+scale(EnvNoiseSigma)) %>% summary
+lm(data =AllData_logg, Shift_r2     ~scale(Disp)+scale(comp_str)+scale(R_max)+scale(EnvNoiseSigma)) %>% summary
+
+### Main effects, 1st order interactions
+
+lm(data =AllData_logg, Shift_CoDist ~(scale(Disp)+scale(comp_str)+scale(R_max)+scale(EnvNoiseSigma))^2) %>% summary
+```
+
+## Plots
+
+```{r}
+AllData_logg%>%
+  select( RunID, starts_with('Shift_'), Disp:EnvNoiseSigma) %>%
+  rename( Environmental  =  Shift_Env ,
+          Spatial        =  Shift_Spa ,
+          Codistribution =  Shift_CoDist ,
+          Total          =  Shift_r2     ) %>%
+  gather( 'Aspect', 'Fraction',
+          Environmental ,Spatial,Codistribution,Total         ) %>%
+  ungroup() %>%
+select(  -RunID) %>%
+  rename(  'Dispersal (log delta)' = Disp , 'Competition (alpha)'  =comp_str ,
+         'Growth (gamma)' = R_max,'Stochasticity (log sigma)' = EnvNoiseSigma ) %>%
+  gather( 'InputParameter', 'Value',   -c(Aspect,Fraction) ) %>%
+  ggplot( aes( y=Fraction,  x=Value ))+
+  geom_boxplot(aes(fill = Aspect, x=factor(Value) ))+
+  #geom_point(aes(col = Aspect), alpha = 0.5, size = 0.6)+
+#  geom_smooth( col = 'black', se = FALSE)+
+  geom_hline(yintercept = 0, col = 'black', linetype = 2)+
+  facet_grid(Aspect~InputParameter, scales = 'free')+
+#  ggtitle( 'Effect of Parameters on Shifts ')+
+  xlab('Model Parameter Value')+
+  ylab('Absolute Shift in R2 Partition\nwith environmental change')+
+  theme_minimal()+
+  guides( fill = FALSE)+
+  coord_cartesian(ylim = c( -0.15, 0.15) )+
+  scale_fill_manual( values = c('lightskyblue3', 'palegreen4','gold2',  'pink'),
+                       limits = c('Codistribution', 'Environmental' ,
+                                  'Spatial' , 'Total'))
+
+
+# ggsave( 'Figures/ParamShift.png', height = 10, width = 10, dpi = 500, bg = 'white')
+
+
+```
+
+# Trends in occupancy and turnover 
+
+```{r}
+VP_ALL %>%
+  group_by(RunID,Sample) %>%
+  summarise( `SD Occupancy` = sd(prevalance),
+             `Mean Occupancy` = mean(prevalance),
+             `Total Species` = n()) %>%
+  left_join(InputParameters, by = "RunID")-> Run_species_data
+
+
+Run_species_data %>%
+   mutate(EnvNoiseSigma = log10(EnvNoiseSigma),
+         Disp = log10(Disp)) %>%
+  filter( Sample       == 'Before_WithTempVar') %>%
+    rename(  'Dispersal (log delta)' = Disp , 'Competition (alpha)'  =comp_str ,
+         'Growth (gamma)' = R_max,'Variability (log sigma)' = EnvNoiseSigma ) %>%
+  gather( 'InputParameter', 'Value',
+        `Dispersal (log delta)` , `Competition (alpha)`,
+         `Growth (gamma)` ,`Variability (log sigma)` )%>%
+   gather( 'Response', 'Value2',
+         `SD Occupancy` ,`Mean Occupancy`, `Total Species` ) %>%
+  ggplot( aes( x = factor(Value), y = Value2))+
+  geom_boxplot()+
+  facet_grid(Response~ InputParameter, scales = 'free')+
+  xlab('Model Parameter Value\n(NB Dispersal and Variability on log10 scales)')+
+  ylab('Value before Envrionmental Change')+
+  theme_minimal()
+
+# ggsave( 'Figures/OccuBefore.png', height = 6, width = 8, dpi = 500)
+
+```
+
+
+```{r eval = FALSE}
+### Function to pull out the turnover (measured as a Jaccard dissimilarity) between sample time slices
+
+ExtractMeanOccu <- function( RunID, InputParameters){
+  
+  load(file = paste0('../SavedObjects/', InputParameters$RunName[1], '/Run_',RunID,'_MCobject_PreProcess'))
+  
+  Side_length = Trial$Region_Length 
+  Mat_to_keep <- matrix(TRUE, nrow = Side_length, ncol =Side_length)
+  Mat_to_keep[c(1,2,Side_length-1, Side_length), ]<-FALSE
+  Mat_to_keep[,c(1,2,Side_length-1, Side_length) ]<-FALSE
+  sites_to_keep <-which(Mat_to_keep )
+  
+  Before_focalsites <- Trial$Before_Matrix[,sites_to_keep]  # originally rows = species, cols = sites 
+  During_focalsites <- Trial$During_Matrix[,sites_to_keep]  # originally rows = species, cols = sites 
+  
+  ## Binarising
+  Occ_thresh = InputParameters$Occ_thresh[RunID]
+  Before_focalsites <- Before_focalsites> Occ_thresh
+  During_focalsites <- During_focalsites> Occ_thresh
+  
+  ### Then find species that can be straight dropped if they too rarely occur 
+  Occupancy_before <- rowSums(Before_focalsites)
+  Occupancy_during <- rowSums(During_focalsites)
+  
+  KeepSpecies <- Occupancy_before>=20 & Occupancy_during>=20
+  ## also do a final transpose so have sites as rows, and species as columns
+  Before_focalsites_focalspecies_t <- t(Before_focalsites[KeepSpecies, ])*1
+  During_focalsites_focalspecies_t <- t(During_focalsites[KeepSpecies, ])*1
+#  cat(RunID)
+  
+  ## Overall turnover
+  rbind(   matrix(Before_focalsites_focalspecies_t, nrow=1), 
+               matrix(During_focalsites_focalspecies_t, nrow=1) ) -> YY
+  
+
+  return(data.frame( RunID  = RunID,
+                     N_Sp = ncol( Before_focalsites_focalspecies_t),
+                     OverallJaccDiss = vegan::vegdist(YY, method = 'jaccard')[1],
+                     BeforeMeanOccu = mean(Before_focalsites_focalspecies_t),
+                     DuringMeanOccu = mean(During_focalsites_focalspecies_t)))
+}
+
+OccuChange<-map_df(.x = 1:2000,  .f = ExtractMeanOccu,
+                   InputParameters=InputParameters )
+write_csv(OccuChange,'../SavedObjects/OccuChange_simul.csv')
+```
+
+```{r}
+OccuChange<- read_csv('../SavedObjects/OccuChange_simul.csv')
+
+OccuChange %>%
+  mutate( PercChange= 100* (DuringMeanOccu- BeforeMeanOccu)/BeforeMeanOccu) ->OccuChange
+
+OccuChange%>%
+  ggplot( aes ( x=PercChange))+
+  geom_histogram()+
+  geom_vline(xintercept = mean(OccuChange$PercChange))
+
+mean(OccuChange$BeforeMeanOccu)
+mean(OccuChange$DuringMeanOccu)
+
+sd(OccuChange$BeforeMeanOccu*100)
+sd(OccuChange$DuringMeanOccu*100)
+
+hist(OccuChange$OverallJaccDiss)
+mean(OccuChange$OverallJaccDiss)
+sd(OccuChange$OverallJaccDiss)
+
+```
+
+# Session Info
+
+```{r}
+sessionInfo()
+```

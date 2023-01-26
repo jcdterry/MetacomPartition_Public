@@ -109,7 +109,9 @@ AllRuns_Means_HMSC_cutdown %>%
   ggplot( aes( x = Year, y = Value   ))+
   geom_point()+
   facet_wrap(~Metric, scale =  'free_y', nrow = 1)+
-  geom_smooth(method = 'lm', se = FALSE, aes( linetype= LineType))+
+  geom_smooth(method = 'lm', aes( linetype= LineType), level = 0.66 )+
+  geom_smooth(method = 'lm', aes( linetype= LineType))+
+  geom_smooth(method = 'lm', aes( linetype= LineType), level = 0.99 )+
   ylab(bquote('Variance Explained\n'~(R[adjust]^2)))+ guides( linetype = FALSE)+
   theme_minimal()
 

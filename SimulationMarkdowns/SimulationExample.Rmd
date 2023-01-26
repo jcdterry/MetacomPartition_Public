@@ -556,13 +556,13 @@ plot_grid( plot_E1_start+guides(fill=FALSE),
                       'b) E1, t =1000',
                       '',
                       'c) E2', 
-                      'd) E3',
+                      'd) R* (Sp.X)',
                       '',
-                      'e) Growth Rate, t=975',
-                      'f) Growth Rate, t =1000',
+                      'e) Sp.X R, t=975',
+                      'f) Sp.X R, t =1000',
                       '',
-                      'g) Density, t=975',
-                      'h) Density, t =1000',
+                      'g) Sp.X Density, t=975',
+                      'h) Sp.X Density, t =1000',
                       ''),
            hjust = -0.1,
            rel_widths = c(1,1,0.5,1,1,0.5,
@@ -584,6 +584,56 @@ xxx %>% ggplot(aes(x=x,y =y,fill=R2))+geom_tile()+scale_fill_viridis_c()
 xxx %>% ggplot(aes(x=x,y =y,fill=E3))+geom_tile()+scale_fill_viridis_c()
 
 ```
+
+
+# Example for Main text box
+
+
+```{r}
+
+plot_grid( plot_E1_start+guides(fill=FALSE),
+           plot_E2,
+           plot_E3,
+           LegendE,
+           plot_E1_during,
+           plot_dens1+guides(fill="none"),
+           plot_dens2,
+           LegendD,
+           nrow = 2,
+           labels = c('a) E1, t=975',
+                      'b) E2', 
+                      'c) R* (Sp.X)',
+                      '',
+                      'd) E1, t=1000',
+                      'e) Sp.X, t=975',
+                      'f) Sp.X, t =1000',
+                      ''),
+           hjust = -0.1,
+           rel_widths = c(1,1,1,0.5, 1,1,0.5),
+           label_fontface = 'plain',
+           scale = 0.9)
+                
+ggsave( 'Figures/SimulationExample_MTbox.png', height = 4, width = 6, dpi = 500)
+
+        
+
+
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

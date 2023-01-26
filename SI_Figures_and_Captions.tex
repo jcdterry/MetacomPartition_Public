@@ -4,11 +4,6 @@
 %
 \documentclass[
 ]{article}
-\title{SI Figures for \emph{Codistribution as an indicator of whole
-metacommunity response to environmental change.}}
-\author{Authorship Redacted for blind review}
-\date{}
-
 \usepackage{amsmath,amssymb}
 \usepackage{lmodern}
 \usepackage{iftex}
@@ -38,14 +33,6 @@ metacommunity response to environmental change.}}
   \KOMAoptions{parskip=half}}
 \makeatother
 \usepackage{xcolor}
-\IfFileExists{xurl.sty}{\usepackage{xurl}}{} % add URL line breaks if available
-\IfFileExists{bookmark.sty}{\usepackage{bookmark}}{\usepackage{hyperref}}
-\hypersetup{
-  pdftitle={SI Figures for Codistribution as an indicator of whole metacommunity response to environmental change.},
-  pdfauthor={Authorship Redacted for blind review},
-  hidelinks,
-  pdfcreator={LaTeX via pandoc}}
-\urlstyle{same} % disable monospaced font for URLs
 \usepackage[margin=1in]{geometry}
 \usepackage{longtable,booktabs,array}
 \usepackage{calc} % for calculating minipage widths
@@ -78,6 +65,19 @@ metacommunity response to environmental change.}}
 \ifLuaTeX
   \usepackage{selnolig}  % disable illegal ligatures
 \fi
+\IfFileExists{bookmark.sty}{\usepackage{bookmark}}{\usepackage{hyperref}}
+\IfFileExists{xurl.sty}{\usepackage{xurl}}{} % add URL line breaks if available
+\urlstyle{same} % disable monospaced font for URLs
+\hypersetup{
+  pdftitle={SI Figures for Codistribution as an indicator of whole metacommunity response to environmental change.},
+  pdfauthor={Authorship Redacted for blind review},
+  hidelinks,
+  pdfcreator={LaTeX via pandoc}}
+
+\title{SI Figures for \emph{Codistribution as an indicator of whole
+metacommunity response to environmental change.}}
+\author{Authorship Redacted for blind review}
+\date{}
 
 \begin{document}
 \maketitle
@@ -227,13 +227,13 @@ occupancy through this period.}
 \begin{longtable}[]{@{}ll@{}}
 \caption{Linnean binomials and English common names of focal butterfly
 species}\tabularnewline
-\toprule
+\toprule()
 Scientific Name & English Common Name \\
-\midrule
+\midrule()
 \endfirsthead
-\toprule
+\toprule()
 Scientific Name & English Common Name \\
-\midrule
+\midrule()
 \endhead
 \textit{Polyommatus bellargus} & Adonis Blue \\
 \textit{Gonepteryx rhamni} & Brimstone \\
@@ -277,7 +277,7 @@ Scientific Name & English Common Name \\
 \textit{Satyrium w-album} & White-letter Hairstreak \\
 \textit{Limenitis camilla} & White Admiral \\
 \textit{Leptidea sinapis} & Wood White \\
-\bottomrule
+\bottomrule()
 \end{longtable}
 
 \hypertarget{fitted-environmental-coefficients}{%
@@ -349,18 +349,33 @@ the UK National Grid and lines of longitude.}
 \hypertarget{species-names-1}{%
 \subsection{Species Names}\label{species-names-1}}
 
-\begin{longtable}[]{@{}lll@{}}
+\begin{longtable}[]{@{}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 4\tabcolsep) * \real{0.5493}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 4\tabcolsep) * \real{0.3662}}
+  >{\raggedright\arraybackslash}p{(\columnwidth - 4\tabcolsep) * \real{0.0845}}@{}}
 \caption{Linnean binomials and English common names of focal bird
 species. ``HQ'' column indicates if the species had sufficient
 ``high-quality'' observations to be retained in the more restricted
 datasets.}\tabularnewline
-\toprule
-Scientific Name & English Common Name & HQ \\
-\midrule
+\toprule()
+\begin{minipage}[b]{\linewidth}\raggedright
+Scientific Name
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+English Common Name
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+HQ
+\end{minipage} \\
+\midrule()
 \endfirsthead
-\toprule
-Scientific Name & English Common Name & HQ \\
-\midrule
+\toprule()
+\begin{minipage}[b]{\linewidth}\raggedright
+Scientific Name
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+English Common Name
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+HQ
+\end{minipage} \\
+\midrule()
 \endhead
 \textit{Tyto alba} & Barn Owl & TRUE \\
 \textit{Chroicocephalus ridibundus} & Black-headed Gull & TRUE \\
@@ -442,7 +457,7 @@ Scientific Name & English Common Name & HQ \\
 \textit{Scolopax rusticola} & Woodcock & TRUE \\
 \textit{Lullula arborea} & Woodlark & TRUE \\
 \textit{Motacilla flava} & Yellow Wagtail & TRUE \\
-\bottomrule
+\bottomrule()
 \end{longtable}
 
 \hypertarget{species-habitat-associations}{%

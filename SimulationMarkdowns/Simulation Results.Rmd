@@ -94,22 +94,30 @@ VP_ALL %>%
 # Main results
 
 ```{r}
-# AllData %>%
-#   select( RunID, starts_with('Shift_')) %>%
-#   gather( 'Aspect', 'Fraction', starts_with('Shift_'))%>%
-#   ggplot( aes( y=Fraction, x = Aspect, fill = Aspect ))+
-#   geom_boxplot()+
-#   ylab(bquote('Shift in Variance Explained'~(ΔR[adjust]^2)))+
-#   xlab('Partition')+
-#   scale_x_discrete(  limits = c('Shift_CoDist', 'Shift_Env' ,'Shift_Spa' , 'Shift_r2'),
-#                     labels = c('Codistribution','Environmental' ,'Spatial', 'Total'))+
-#   scale_fill_manual( values = c('lightskyblue3', 'palegreen4','gold2',  'pink'),
-#                      limits = c('Shift_CoDist', 'Shift_Env' ,'Shift_Spa' , 'Shift_r2'))+
-#    geom_hline(yintercept = 0, linetype = 2, size = 2)+
-#   guides( fill = FALSE)+
-#   coord_cartesian(ylim = c( -0.15, 0.2) )+
-#   theme_minimal()
+AllData %>%
+  select( RunID, starts_with('Shift_')) %>%
+  gather( 'Aspect', 'Fraction', starts_with('Shift_'))%>%
+  ggplot( aes( y=Fraction, x = Aspect, fill = Aspect ))+
+  geom_boxplot()+
+  ylab(bquote('Shift in Variance Explained'~(ΔR[adjust]^2)))+
+  xlab('Partition')+
+  scale_x_discrete(  limits = c('Shift_CoDist', 'Shift_Env' ,'Shift_Spa' , 'Shift_r2'),
+                    labels = c('Codistribution','Environmental' ,'Spatial', 'Total'))+
+  scale_fill_manual( values = c('lightskyblue3', 'palegreen4','gold2',  'pink'),
+                     limits = c('Shift_CoDist', 'Shift_Env' ,'Shift_Spa' , 'Shift_r2'))+
+   geom_hline(yintercept = 0, linetype = 2, size = 2)+
+  guides( fill = FALSE)+
+  coord_cartesian(ylim = c( -0.15, 0.2) )+
+  theme_minimal()
 
+
+
+t.test(AllData$Shift_Env   ,  mu = 0, alternative = "two.sided" )
+t.test(AllData$Shift_Spa   ,  mu = 0, alternative = "two.sided" )
+t.test(AllData$Shift_CoDist,  mu = 0, alternative = "two.sided" )
+t.test(AllData$Shift_r2    ,  mu = 0, alternative = "two.sided" )
+
+  
 # ggsave( 'Figures/SummaryShifts.png', height = 5, width = 6, dpi = 500, bg = 'white')
 
 AllData %>%
@@ -150,14 +158,14 @@ AllData_logg %>%
   facet_grid(Aspect~InputParameter, scales = 'free')+
   #ggtitle( 'Effect of Parameters Rate on Before Structure')+
   xlab('Model Parameter Value')+
-  ylab('R2 Partition\nbefore envrionemntal change')+
+  ylab('R2 Partition\nbefore environmental change')+
   theme_minimal()+
   guides( fill = FALSE)+
   scale_fill_manual( values = c('lightskyblue3', 'palegreen4','gold2',  'pink'),
                        limits = c('Codistribution', 'Environmental' ,
                                   'Spatial' , 'Total'))
 
-# ggsave( 'Figures/ParamStart.png', height = 10, width = 10, dpi = 500)
+ ggsave( 'Figures/ParamStart.png', height = 10, width = 10, dpi = 500)
 
 ```
 
@@ -211,7 +219,7 @@ select(  -RunID) %>%
                                   'Spatial' , 'Total'))
 
 
-# ggsave( 'Figures/ParamShift.png', height = 10, width = 10, dpi = 500, bg = 'white')
+ ggsave( 'Figures/ParamShift.png', height = 10, width = 10, dpi = 500, bg = 'white')
 
 
 ```
