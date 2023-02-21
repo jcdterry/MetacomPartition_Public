@@ -12,9 +12,9 @@ editor_options:
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
- Scanning the movement through the ternary plot of a community before and during climate change
- 
- First thing that is needed is the presence / absences through time. 
+Scanning the movement through the ternary plot of a community before and during climate change
+
+First thing that is needed is the presence / absences through time. 
 
 ```{r message = FALSE, warning = FALSE}
 library(tidyverse)
@@ -35,12 +35,12 @@ TrialName="TrackThroughTime"
 
 ## numbers were drawn randomly 
 InputParameters <- data.frame(RunID = 1, 
-                     RunName = TrialName,
-                     S_global = 50,
-                     Disp= 0.0027807184476405385,  
-                     comp_str= 0.3101610479876399,
-                     comp_conn= 0.01,  
-                     R_max = 10.4629793507047)
+                              RunName = TrialName,
+                              S_global = 50,
+                              Disp= 0.0027807184476405385,  
+                              comp_str= 0.3101610479876399,
+                              comp_conn= 0.01,  
+                              R_max = 10.4629793507047)
 
 # write_csv(InputParameters, paste0('../Parameters/' ,TrialName, '.csv' ))
 # 
@@ -188,11 +188,11 @@ InputParameters<- read_csv(paste0('../Parameters/',TrialName, '.csv'),
 load(file = paste0('../SavedObjects/', InputParameters$RunName[1], '/Run_',RunID,'_ArrayOutput'))
 
 for(Occ_thresh in c(0.01, 0.1, 1)  ){
-
+  
   #########
   # Processing to get focal species, binareised from focal nodes
-    Side_length = Trial$Region_Length 
-
+  Side_length = Trial$Region_Length 
+  
   Mat_to_keep <- matrix(TRUE, nrow = Side_length, ncol =Side_length)
   
   Mat_to_keep[c(1,2,Side_length-1, Side_length), ]<-FALSE
@@ -203,41 +203,41 @@ for(Occ_thresh in c(0.01, 0.1, 1)  ){
   
   slice <- Trial$ArrayContainer[,,t_test]
   slice_focalsites <- slice[,sites_to_keep]  # originally rows = species, cols = sites 
-
+  
   ## Binarising
   slice_focalsites <- slice_focalsites> Occ_thresh
-
+  
   ### Then find species that can be straight dropped if they too rarely occur 
   
   focal_sites_allslices <- Trial$ArrayContainer[,sites_to_keep,]
   
   
-    ### need to do some more calculations about which species to keep - need to occur at at least 20 sites accross all time samples
+  ### need to do some more calculations about which species to keep - need to occur at at least 20 sites accross all time samples
   ## will be a bit lower as more times
-
+  
   Occupancy_allslice <- apply(focal_sites_allslices>Occ_thresh, MARGIN = c(1,3), sum)  # make a species x time slice occupancy 
-KeepSpecies<- apply(Occupancy_allslice>=20, MARGIN = 1, all)
+  KeepSpecies<- apply(Occupancy_allslice>=20, MARGIN = 1, all)
   
   ## also do a final transpose so have sites as rows, and species as columns
   slice_focalsites_focalspecies_t <- t(slice_focalsites[KeepSpecies, ])*1
-
+  
   ##  Adding species names for back tracking if necessary
   speciesnames <- paste0('Sp_', which(KeepSpecies))
   
   colnames(slice_focalsites_focalspecies_t) <- speciesnames
-
+  
   ## Adding node names to match original set up 
   nodenames <- paste0('Node_', sites_to_keep)
   rownames(slice_focalsites_focalspecies_t ) <- nodenames
-
+  
   E_toUse= Trial$ModelSetUp$E_nodes_2[sites_to_keep]
-
+  
   # End Processing
   #########
   
   ## Prepping envrionment and spatial data for fitting:
   
-    MEM <- read.csv(paste0('../SavedObjects/MEMs/MEMof',Side_length,'side_focal',Side_length-4,'.csv'))
+  MEM <- read.csv(paste0('../SavedObjects/MEMs/MEMof',Side_length,'side_focal',Side_length-4,'.csv'))
   X_formatted <- cbind(scale(E_toUse),
                        scale(E_toUse)^2,
                        MEM[,-1])  # description of sites . direct and squared environment + a moran eigenvector term (dropping node id numbers)
@@ -246,20 +246,20 @@ KeepSpecies<- apply(Occupancy_allslice>=20, MARGIN = 1, all)
                 rep("spa",ncol(MEM)-1))  ## and as many spatial terms as the eigen vector map does (NB name column dropped also)
   
   N_Sites<- (Side_length-4)^2
-
+  
   ### Function to prepare all the data for HMSC function 
   formData_slice <- as.HMSCdata(Y = slice_focalsites_focalspecies_t,                   
-                                 X = X_formatted,  Random = as.factor(1:N_Sites),         
-                                 scaleX = TRUE,  interceptX = TRUE)
+                                X = X_formatted,  Random = as.factor(1:N_Sites),         
+                                scaleX = TRUE,  interceptX = TRUE)
   
-
+  
   ## fitting models
   model_slice<-  hmsc(formData_slice, family = "probit",
-                       niter = 20000, nburn = 5000, thin = 10 )  # takes a few minutes
+                      niter = 20000, nburn = 5000, thin = 10 )  # takes a few minutes
   
   ## Variance partitioning
   vpSpp_slice <-   variPart(model_slice,groupX = X_groups, type = "III",  R2adjust = TRUE)  # takes 6x as long... 
-
+  
   ## Data reformatting and partitioning 
   vpSpp_slice %>% 
     map(as_tibble) %>%
@@ -288,7 +288,7 @@ KeepSpecies<- apply(Occupancy_allslice>=20, MARGIN = 1, all)
              'OccupancyThresh:', Occ_thresh,
              'Time:', Sys.time()))
 }
-  
+
 print('Finishing at:')
 Sys.time()
 
@@ -325,65 +325,65 @@ AllRuns %>%
 Grouped_DF %>% 
   filter( Occ_thresh == 0.1) -> XXXX
 
-  XXXX$BaseT = c( rep(NA,50) ,seq(0, 0.25,length.out = 25)) 
+XXXX$BaseT = c( rep(NA,50) ,seq(0, 0.25,length.out = 25)) 
 
 DataForLinePlot<- gather(XXXX,'Partition', 'Value',
-                           MeanCodist, MeanR2, MeanSpa, MeanEnv  ) %>%
+                         MeanCodist, MeanR2, MeanSpa, MeanEnv  ) %>%
   mutate(Time = Sample+925)
-  
-DataForLinePlot %>%
-    ggplot( )+
-      geom_point(aes( x = Time, y = Value,col = Partition))+
-   # geom_smooth( se = FALSE)+
-    geom_vline( xintercept = 50+925, linetype='dashed')+
-    geom_vline( xintercept = 1000, linetype='dashed')+
-     geom_point(aes( x = Time, y = Value,  col = Partition),
-                data = filter(DataForLinePlot, Time %in% c(975, 1000)),
-             size = 1.5 ,shape = 21, col = 1, stroke = 1.5)+
- theme_minimal()+
-    ylab('Variance Explained')+
-    xlab('Time')+
-    scale_colour_manual( values = c('lightskyblue3', 'palegreen4','gold2',  'pink'),
-                     labels = c('Codistribution','Environmental' ,'Spatial', 'Total'),
-                     limits = c('MeanCodist', 'MeanEnv' ,'MeanSpa' , 'MeanR2') )+
-   guides()+
-    theme(legend.position = 'bottom')-> LinePlot
-  
-  LinePlot
 
-  ggsave('Figures/ExampleLinePlot.png',LinePlot,
-         width = 5.5, height = 5, dpi = 500 )
-  
-  XXXX %>%
-    arrange( Sample)%>%
-    ggtern(aes(x = MeanEnv, z = MeanSpa, y = MeanCodist, size = MeanR2)) +
-    geom_path( alpha = 0.8, size = 0.5,aes(color =BaseT  )) +
-    geom_point(aes(color =BaseT  ), alpha = 1, size = 3) +
-    scale_T_continuous(limits=c(0,1),breaks=seq(0,1,by=0.1),
-                       labels=seq(0,1,by=0.1)) +
-    scale_L_continuous(limits=c(0.0,1),breaks=seq(0,1,by=0.1),
-                       labels=seq(0,1,by=0.1)) +
-    scale_R_continuous(limits=c(0,1),breaks=seq(0,1,by=0.1),
-                       labels=seq(0,1,by=0.1)) +
-    labs(title = '',
-         x = "", xarrow = "Environment",
-         y = "",yarrow = "Codistribution",
-         z = "", zarrow = "Spatial" ) +
-    theme_light() +
-    #scale_colour_viridis_c()+
-    scale_colour_gradient2(low = 'skyblue',mid = 'blue',
-                           high = 'red', midpoint = 0.125,
-                           name = 'Environmental\nChange\n')+
-    theme_showarrows() +
-    scale_size_area(limits = c(0,1), breaks = seq(0,1,0.2)) +
-    theme(panel.grid = element_line(color = "darkgrey"),
-          axis.title = element_text(size = 8),
-          legend.position = 'bottom',
-          legend.title  = element_text(size = 8),
-          legend.text = element_text(size = 8),
-          legend.key.width  = unit(1.5, 'cm'))+
-    theme_zoom_R(0.4) -> Ternary
-  Ternary
+DataForLinePlot %>%
+  ggplot( )+
+  geom_point(aes( x = Time, y = Value,col = Partition))+
+  # geom_smooth( se = FALSE)+
+  geom_vline( xintercept = 50+925, linetype='dashed')+
+  geom_vline( xintercept = 1000, linetype='dashed')+
+  geom_point(aes( x = Time, y = Value,  col = Partition),
+             data = filter(DataForLinePlot, Time %in% c(975, 1000)),
+             size = 1.5 ,shape = 21, col = 1, stroke = 1.5)+
+  theme_minimal()+
+  ylab('Variance Explained')+
+  xlab('Time')+
+  scale_colour_manual( values = c('lightskyblue3', 'palegreen4','gold2',  'pink'),
+                       labels = c('Codistribution','Environmental' ,'Spatial', 'Total'),
+                       limits = c('MeanCodist', 'MeanEnv' ,'MeanSpa' , 'MeanR2') )+
+  guides()+
+  theme(legend.position = 'bottom')-> LinePlot
+
+LinePlot
+
+ggsave('Figures/ExampleLinePlot.png',LinePlot,
+       width = 5.5, height = 5, dpi = 500 )
+
+XXXX %>%
+  arrange( Sample)%>%
+  ggtern(aes(x = MeanEnv, z = MeanSpa, y = MeanCodist, size = MeanR2)) +
+  geom_path( alpha = 0.8, size = 0.5,aes(color =BaseT  )) +
+  geom_point(aes(color =BaseT  ), alpha = 1, size = 3) +
+  scale_T_continuous(limits=c(0,1),breaks=seq(0,1,by=0.1),
+                     labels=seq(0,1,by=0.1)) +
+  scale_L_continuous(limits=c(0.0,1),breaks=seq(0,1,by=0.1),
+                     labels=seq(0,1,by=0.1)) +
+  scale_R_continuous(limits=c(0,1),breaks=seq(0,1,by=0.1),
+                     labels=seq(0,1,by=0.1)) +
+  labs(title = '',
+       x = "", xarrow = "Environment",
+       y = "",yarrow = "Codistribution",
+       z = "", zarrow = "Spatial" ) +
+  theme_light() +
+  #scale_colour_viridis_c()+
+  scale_colour_gradient2(low = 'skyblue',mid = 'blue',
+                         high = 'red', midpoint = 0.125,
+                         name = 'Environmental\nChange\n')+
+  theme_showarrows() +
+  scale_size_area(limits = c(0,1), breaks = seq(0,1,0.2)) +
+  theme(panel.grid = element_line(color = "darkgrey"),
+        axis.title = element_text(size = 8),
+        legend.position = 'bottom',
+        legend.title  = element_text(size = 8),
+        legend.text = element_text(size = 8),
+        legend.key.width  = unit(1.5, 'cm'))+
+  theme_zoom_R(0.4) -> Ternary
+Ternary
 ggsave('Figures/TernaryPlot.png',Ternary,
        width = 6, height = 6, dpi = 500 )
 
@@ -407,35 +407,35 @@ SpSel <- 2
 SelectedSp<-data.frame( time1Dens = log10(Time1[SpSel, ]),
                         time75Dens = log10(Time75[SpSel, ]),
                         R1 = t(Calc_RMat(E_nodes = ModelSetUp$E_nodes,
-                                       EnvOpt = ModelSetUp$EnvOpt[SpSel],
-                                       E_change = 0)),
+                                         EnvOpt = ModelSetUp$EnvOpt[SpSel],
+                                         E_change = 0)),
                         R2 =  ModelSetUp$R_Mat_2[SpSel,],
                         E1 =  ModelSetUp$E_nodes,
                         E2 = ModelSetUp$E_nodes_2,
                         E3 = ModelSetUp$R_Mat_3[SpSel,] ,
                         R_Tot = t(Calc_RMat_3(E_nodes = ModelSetUp$E_nodes,
-                                       EnvOpt = ModelSetUp$EnvOpt[SpSel],
-                                       E_change = 0, R_Mat_2 =ModelSetUp$R_Mat_2[SpSel,] ,
-                                       R_Mat_3 =ModelSetUp$R_Mat_3[SpSel,] )),
+                                              EnvOpt = ModelSetUp$EnvOpt[SpSel],
+                                              E_change = 0, R_Mat_2 =ModelSetUp$R_Mat_2[SpSel,] ,
+                                              R_Mat_3 =ModelSetUp$R_Mat_3[SpSel,] )),
                         
                         R_Tot_change = t(Calc_RMat_3(E_nodes = ModelSetUp$E_nodes,
-                                       EnvOpt = ModelSetUp$EnvOpt[SpSel],
-                                       E_change = 0.25, 
-                                       R_Mat_2 =ModelSetUp$R_Mat_2[SpSel,] ,
-                                       R_Mat_3 =ModelSetUp$R_Mat_3[SpSel,] ))
-                        )
+                                                     EnvOpt = ModelSetUp$EnvOpt[SpSel],
+                                                     E_change = 0.25, 
+                                                     R_Mat_2 =ModelSetUp$R_Mat_2[SpSel,] ,
+                                                     R_Mat_3 =ModelSetUp$R_Mat_3[SpSel,] ))
+)
 
- RL <- Trial$Region_Length 
-  
-  Node_loc<-  data.frame(NodeID = 1:(RL^2),
-                         x=rep((1:RL)/RL, each = RL),
-                         y=rep((1:RL)/RL, times = RL))
-  
- Mat_to_keep <- matrix(TRUE, nrow = RL, ncol =RL)
-  Mat_to_keep[c(1,2,RL-1, RL), ]<-FALSE
-  Mat_to_keep[,c(1,2,RL-1, RL) ]<-FALSE
-  sites_to_keep <-which(Mat_to_keep )
-  
+RL <- Trial$Region_Length 
+
+Node_loc<-  data.frame(NodeID = 1:(RL^2),
+                       x=rep((1:RL)/RL, each = RL),
+                       y=rep((1:RL)/RL, times = RL))
+
+Mat_to_keep <- matrix(TRUE, nrow = RL, ncol =RL)
+Mat_to_keep[c(1,2,RL-1, RL), ]<-FALSE
+Mat_to_keep[,c(1,2,RL-1, RL) ]<-FALSE
+sites_to_keep <-which(Mat_to_keep )
+
 xxx<- as_tibble(bind_cols(SelectedSp, Node_loc))%>% 
   mutate( Kept = (NodeID      %in% sites_to_keep)*1 )
 
@@ -450,7 +450,7 @@ xxx<- as_tibble(bind_cols(SelectedSp, Node_loc))%>%
 theme_nothing <- ggmap::theme_nothing
 
 xxx %>% ggplot(aes(x=x,y =y,fill=E1,
-             alpha = Kept))+geom_tile()+
+                   alpha = Kept))+geom_tile()+
   scale_fill_viridis_c(option = 'B', name = '',
                        limits = c(-0.5,1.5))+
   coord_fixed()+
@@ -459,7 +459,7 @@ xxx %>% ggplot(aes(x=x,y =y,fill=E1,
 
 
 xxx %>% ggplot(aes(x=x,y =y,fill=E1+0.25,
-             alpha = Kept))+geom_tile()+
+                   alpha = Kept))+geom_tile()+
   scale_fill_viridis_c(option = 'B', name = '',
                        limits = c(-0.5,1.5))+
   coord_fixed()+
@@ -467,10 +467,10 @@ xxx %>% ggplot(aes(x=x,y =y,fill=E1+0.25,
   guides(alpha = FALSE , fill=FALSE) -> plot_E1_during
 
 xxx %>% ggplot(aes(x=x,y =y,fill=E2,
-             alpha = Kept))+geom_tile()+
+                   alpha = Kept))+geom_tile()+
   scale_alpha(range = c(0.2, 1))+coord_fixed()+ theme_nothing(legend = TRUE)+
   guides(alpha = FALSE , fill=FALSE)+
-    scale_fill_viridis_c(option = 'B', name = '',
+  scale_fill_viridis_c(option = 'B', name = '',
                        limits = c(-0.5,1.5))-> plot_E2
 
 xxx %>% 
@@ -479,7 +479,7 @@ xxx %>%
   geom_tile()+ 
   scale_fill_viridis_c(option = 'B', name = '',
                        limits = c(-0.5,1.5))+
-    theme_nothing(legend = TRUE)+
+  theme_nothing(legend = TRUE)+
   guides(alpha = FALSE , fill=FALSE)+coord_fixed()-> plot_E3
 
 
@@ -492,7 +492,7 @@ LegendE <- get_legend(plot_E1_start)
 
 
 xxx %>% ggplot(aes(x=x,y =y,fill=R_Tot,
-             alpha = Kept))+
+                   alpha = Kept))+
   geom_tile()+coord_fixed()+
   scale_alpha(range = c(0.2, 1))+ 
   theme_nothing(legend = TRUE)+guides(alpha ='none')+
@@ -518,8 +518,8 @@ xxx %>%
              alpha = Kept))+
   geom_tile()+scale_fill_viridis_c(limits = c(-10,2),
                                    name = 'Log10\nDensity')+
-    theme_nothing(legend = TRUE)+coord_fixed()+
-    guides( alpha = 'none')+
+  theme_nothing(legend = TRUE)+coord_fixed()+
+  guides( alpha = 'none')+
   scale_alpha(range = c(0.2, 1))-> plot_dens1
 
 
@@ -529,52 +529,111 @@ xxx %>%
   scale_alpha(range = c(0.2, 1))+
   geom_tile()+scale_fill_viridis_c()+
   guides( fill="none", alpha = 'none')+
-    theme_nothing(legend = TRUE)+coord_fixed() -> plot_dens2
+  theme_nothing(legend = TRUE)+coord_fixed() -> plot_dens2
 
 
 LegendD <- get_legend(plot_dens1)
 
 ```
 
+### Competition Matrix
+
+```{r}
+
+CMAT <- Trial$ModelSetUp$CompMat
+
+diag(CMAT) <- 'Intra'
+
+CMAT<-as.data.frame(CMAT)
+
+colnames(CMAT) <- 1:50
+CMAT$Sp2 <-  1:50
+
+CMAT %>%
+  gather( 'Sp1', 'Int', -Sp2 ) %>%
+  arrange(Sp1, Sp2) %>%
+  ggplot(aes(x=as.numeric(Sp1),y =as.numeric(Sp2),fill=factor(Int)))+
+  geom_tile()+
+  scale_x_continuous(limits= c(1,50), 'Species i')+
+  scale_y_continuous(limits= c(1,50), 'Species j')+
+  scale_fill_manual(values = c('grey', 'red', 'blue'),
+                    name = 'Competition',
+                    na.value = 'blue')+
+  guides( fill = 'none')+
+  theme_minimal()+
+  coord_fixed() +
+  theme(panel.grid = element_blank(),
+        text = element_text(size = 10))  -> CompMat_plot
+```
+
+### Environmental Optima
+
+```{r}
+data.frame(Species = 1:50, 
+           E1 =Trial$ModelSetUp$EnvOpt,
+           E2 = Trial$ModelSetUp$EnvOpt_2)%>%
+  gather( 'Optima', 'E', -Species ) %>%
+  ggplot(aes(y=Optima,x =Species,fill=E))+
+  geom_tile()+
+  scale_fill_viridis_c(option = 'B', name = '',  limits = c(-0.5,1.5))+
+  guides(fill = 'none') + theme_minimal() + coord_fixed(ratio = 10)+
+  theme(panel.grid = element_blank()) -> SpeciesOptima_plot
+
+```
 #### Combining
 
 ```{r}
-plot_grid( plot_E1_start+guides(fill=FALSE),
-           plot_E1_during,
-           LegendE,
-           plot_E2,
-           plot_E3,
-           LegendE,
-           plot_Rpre+guides(fill="none"),
-           plot_r_during,
-           LegendR,
-           plot_dens1+guides(fill="none"),
-           plot_dens2,
-           LegendD,
-           ncol = 3,
-           labels = c('a) E1, t=975',
-                      'b) E1, t =1000',
-                      '',
-                      'c) E2', 
-                      'd) R* (Sp.X)',
-                      '',
-                      'e) Sp.X R, t=975',
-                      'f) Sp.X R, t =1000',
-                      '',
-                      'g) Sp.X Density, t=975',
-                      'h) Sp.X Density, t =1000',
-                      ''),
-           hjust = -0.1,
-           rel_widths = c(1,1,0.5,1,1,0.5,
-                          1,1,0.5,1,1,0.5),
-           label_fontface = 'plain',
-           scale = 0.9)
-                
-ggsave( 'Figures/SimulationExample_grid.png', height = 10, width = 5, dpi = 500)
+Top <- plot_grid( CompMat_plot,
+                  SpeciesOptima_plot,
+                  ncol = ,
+                  labels = c( 'a) Competition Matrix',
+                              'b) Environmental Optima'),
+                  hjust = -0.1,
+                  rel_widths = c(1, 1),
+                  label_fontface = 'plain',
+                  scale = 0.9)
 
-             
+Mid <- plot_grid( plot_E1_start+guides(fill=FALSE),
+                  plot_E1_during,
+                  LegendE,
+                  plot_E2,
+                  plot_E3,
+                     LegendE,
+                  ncol = 6,
+                  labels = c('c) E1, t=975',
+                             'd) E1, t =1000',
+                             '',
+                             'e) E2',
+                             'f) R* (Sp.X)',
+                             ''),
+                  hjust = -0.1,
+                  rel_widths = c(1,1,0.5, 1,1,0.5),
+                  label_fontface = 'plain',
+                  scale = 0.9)
 
 
+BOTTOM <-plot_grid(plot_Rpre+guides(fill="none"),
+                   plot_r_during,
+                   LegendR,
+                   plot_dens1+guides(fill="none"),
+                   plot_dens2,
+                   LegendD,
+                   ncol = 6,
+                   labels = c('g) Sp.X R, t=975',
+                              'h) Sp.X R, t =1000',
+                              '',
+                              'i) Sp.X Density, t=975',
+                              'j) Sp.X Density, t =1000',
+                              ''),
+                   hjust = -0.1,
+                   rel_widths = c(1,1,0.5,1,1,0.5),
+                   label_fontface = 'plain',
+                   scale = 0.9)
+
+
+plot_grid(Top, Mid, BOTTOM, ncol = 1, rel_heights = c(1.2,1,1))
+
+ggsave( 'Figures/SimulationExample_grid.png', height = 10, width = 12, dpi = 500)
 ```
 
 ```{r fig.height=3, fig.width=3}
@@ -612,10 +671,10 @@ plot_grid( plot_E1_start+guides(fill=FALSE),
            rel_widths = c(1,1,1,0.5, 1,1,0.5),
            label_fontface = 'plain',
            scale = 0.9)
-                
+
 ggsave( 'Figures/SimulationExample_MTbox.png', height = 4, width = 6, dpi = 500)
 
-        
+
 
 
 
@@ -639,6 +698,5 @@ ggsave( 'Figures/SimulationExample_MTbox.png', height = 4, width = 6, dpi = 500)
 
 
 
- 
- 
- 
+
+
