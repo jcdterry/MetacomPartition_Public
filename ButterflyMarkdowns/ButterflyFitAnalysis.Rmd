@@ -101,7 +101,7 @@ AllRuns_HMSC2test%>%
             MeanR2 = mean(Part_R2_sum)) -> AllRuns_Means_HMSC_cutdown
 
 AllRuns_Means_HMSC_cutdown %>%
-  select( Year, Envrionmental =  MeanEnv,
+  select( Year, Environmental =  MeanEnv,
           Spatial =  MeanSpa,
           Codistribution= MeanCoDist) %>%
   gather('Metric', 'Value', -Year  )%>%
