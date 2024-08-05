@@ -17,6 +17,13 @@ Core scripts are presented as `.rmd` files, and code is organised into simulatio
 
 The output figures are collated into a single SI document with `SI_Figures_and_Captions.rmd`. Helper functions to be sourced in are stored in the `Scripts` folder. The `BashScripts` folder includes both the bash scripts used to set up the HPC and the R scripts that are called to run the simulations and or fitting on HPC. 
 
+# Correction to paper Figure 1
+
+Unfortunately there was an error in the subscripts of equations listed in Figure 1 of the paper. The code used was correct. It should read: 
+
+![Corrected Figure 1 with change highlighted](Correction to Figure 1.PNG)
+
+(the journal were unable to issue an erratum)
 
 ## Description of the data and file structure
 
